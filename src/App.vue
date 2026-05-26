@@ -247,8 +247,8 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div class="xl:col-span-2">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          <div class="xl:col-span-3">
             <DashboardCanvas
               ref="canvasRef"
               :charts="charts"

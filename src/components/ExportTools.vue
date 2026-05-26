@@ -336,9 +336,10 @@ async function exportExcel() {
   let allDataHeaderCols = []
   try {
     const allData = await props.chartDataQuery()
-    if (allData.length && props.rawColumns.length) {
+    if (allData.length) {
+      const dataCols = Object.keys(allData[0])
       const ws = wb.addWorksheet('All Data')
-      const { lastRow, lastCol, headers } = writeRows(ws, allData, props.rawColumns)
+      const { lastRow, lastCol, headers } = writeRows(ws, allData, dataCols)
       addAutoFilter(ws, lastCol, lastRow)
       allDataSheetName = 'All Data'
       allDataHeaderCols = headers
