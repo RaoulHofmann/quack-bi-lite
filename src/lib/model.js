@@ -83,7 +83,8 @@ async function ensureLoaded() {
 
   try {
     const localOk = await localModelsExist()
-    if (localOk) env.allowRemoteModels = false
+    env.allowRemoteModels = localOk ? false : true
+    env.localModelPath = localOk ? MODELS_URL : undefined
 
     pipelineRef = await pipeline('text-generation', MODEL_ID, {
       dtype: 'fp16',
@@ -96,9 +97,12 @@ async function ensureLoaded() {
     modelStatus.value = 'ready'
     return pipelineRef
   } catch (err) {
-    console.error('[model]', err)
+    console.error('[model]', err.message)
     modelError.value = err.message || String(err)
     modelStatus.value = 'error'
+    // Reset so retries can try different settings
+    env.localModelPath = ''
+    env.allowRemoteModels = true
     pipelineRef = null
     throw err
   }
