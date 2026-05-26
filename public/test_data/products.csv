@@ -1,0 +1,16 @@
+Product,Category,UnitPrice,CostPrice,Supplier,StockLevel
+Laptop,Electronics,1200,850,TechSupply,45
+Phone,Electronics,699,450,MobileWorld,120
+Tablet,Electronics,499,320,TechSupply,80
+Desk,Furniture,450,280,OfficePro,35
+Chair,Furniture,220,140,OfficePro,90
+Monitor,Electronics,350,210,TechSupply,55
+Keyboard,Electronics,89,45,TechSupply,200
+Mouse,Electronics,49,22,TechSupply,300
+Printer,Electronics,299,180,PrintCo,25
+Server,Electronics,4500,3200,TechSupply,10
+Bookshelf,Furniture,320,190,OfficePro,20
+Lamp,Furniture,65,35,OfficePro,60
+Cabinet,Furniture,550,380,OfficePro,15
+Router,Electronics,199,120,NetGear,70
+Webcam,Electronics,129,75,TechSupply,40
