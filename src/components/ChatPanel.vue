@@ -9,51 +9,73 @@
       </div>
     </div>
 
-    <div ref="messagesRef" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
-      <div v-if="!messages.length" class="text-center text-gray-400 mt-8">
-        <p class="text-base mb-1">Ask about your data</p>
-        <p class="text-xs">e.g. "What are the total sales by region?" or "Suggest a chart for sales over time"</p>
-      </div>
-      <div v-for="(msg, i) in messages" :key="i">
-        <div v-if="msg.role === 'user'" class="flex justify-end">
-          <div class="bg-blue-600 text-white rounded-xl rounded-br-sm px-3 py-2 max-w-[80%]">{{ msg.text }}</div>
+    <div class="relative flex-1 flex flex-col min-h-0">
+      <!-- Consent overlay -->
+      <div v-if="!modelConsent" class="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-5 mx-4 max-w-xs w-full text-center">
+          <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-3">
+            <svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+            </svg>
+          </div>
+          <h4 class="text-sm font-semibold text-gray-800 mb-2">AI model required</h4>
+          <p class="text-xs text-gray-500 mb-4 leading-relaxed">
+            Quack BI uses an AI model (~250MB) to answer questions about your data. The model runs entirely in your browser — your data stays local.
+          </p>
+          <button @click="approveModel"
+            class="w-full bg-purple-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+            :disabled="consentLoading">
+            {{ consentLoading ? 'Downloading…' : 'Approve &amp; download' }}
+          </button>
         </div>
-        <div v-else class="flex justify-start">
-          <div class="bg-gray-100 text-gray-700 rounded-xl rounded-bl-sm px-3 py-2 max-w-[85%]">
-            <div class="whitespace-pre-wrap">{{ msg.text }}</div>
-            <!-- Suggested charts -->
-            <div v-if="msg.charts && msg.charts.length" class="mt-2 space-y-1 border-t border-gray-200 pt-2">
-              <p class="text-xs font-medium text-gray-500">Suggested charts:</p>
-              <button v-for="(c, ci) in msg.charts" :key="ci" @click="$emit('apply-chart', c)"
-                class="w-full text-left text-xs border border-purple-200 rounded-lg px-2.5 py-1.5 hover:bg-purple-50 transition-colors">
-                <span class="block font-medium text-purple-700">{{ c.label }}</span>
-                <span class="text-gray-400">{{ c.xCol }} → {{ c.agg }} of {{ c.yCol }} ({{ c.chartType }})</span>
-              </button>
-            </div>
-            <!-- SQL -->
-            <div v-if="msg.sql" class="mt-2 border-t border-gray-200 pt-2">
-              <p class="text-xs font-medium text-gray-500 mb-1">SQL query:</p>
-              <pre class="text-xs bg-gray-50 rounded p-2 overflow-x-auto font-mono">{{ msg.sql }}</pre>
-              <button @click="$emit('run-sql', msg.sql)" class="mt-1 text-xs text-blue-600 hover:underline">Run this query</button>
+      </div>
+
+      <div ref="messagesRef" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm" :class="{ 'opacity-30 pointer-events-none': !modelConsent }">
+        <div v-if="!messages.length" class="text-center text-gray-400 mt-8">
+          <p class="text-base mb-1">Ask about your data</p>
+          <p class="text-xs">e.g. "What are the total sales by region?" or "Suggest a chart for sales over time"</p>
+        </div>
+        <div v-for="(msg, i) in messages" :key="i">
+          <div v-if="msg.role === 'user'" class="flex justify-end">
+            <div class="bg-blue-600 text-white rounded-xl rounded-br-sm px-3 py-2 max-w-[80%]">{{ msg.text }}</div>
+          </div>
+          <div v-else class="flex justify-start">
+            <div class="bg-gray-100 text-gray-700 rounded-xl rounded-bl-sm px-3 py-2 max-w-[85%]">
+              <div class="whitespace-pre-wrap">{{ msg.text }}</div>
+              <!-- Suggested charts -->
+              <div v-if="msg.charts && msg.charts.length" class="mt-2 space-y-1 border-t border-gray-200 pt-2">
+                <p class="text-xs font-medium text-gray-500">Suggested charts:</p>
+                <button v-for="(c, ci) in msg.charts" :key="ci" @click="$emit('apply-chart', c)"
+                  class="w-full text-left text-xs border border-purple-200 rounded-lg px-2.5 py-1.5 hover:bg-purple-50 transition-colors">
+                  <span class="block font-medium text-purple-700">{{ c.label }}</span>
+                  <span class="text-gray-400">{{ c.xCol }} → {{ c.agg }} of {{ c.yCol }} ({{ c.chartType }})</span>
+                </button>
+              </div>
+              <!-- SQL -->
+              <div v-if="msg.sql" class="mt-2 border-t border-gray-200 pt-2">
+                <p class="text-xs font-medium text-gray-500 mb-1">SQL query:</p>
+                <pre class="text-xs bg-gray-50 rounded p-2 overflow-x-auto font-mono">{{ msg.sql }}</pre>
+                <button @click="$emit('run-sql', msg.sql)" class="mt-1 text-xs text-blue-600 hover:underline">Run this query</button>
+              </div>
             </div>
           </div>
         </div>
+        <div v-if="loading" class="flex justify-start">
+          <div class="bg-gray-100 text-gray-400 rounded-xl px-3 py-2 text-xs italic">Thinking…</div>
+        </div>
       </div>
-      <div v-if="loading" class="flex justify-start">
-        <div class="bg-gray-100 text-gray-400 rounded-xl px-3 py-2 text-xs italic">Thinking…</div>
-      </div>
-    </div>
 
-    <div class="border-t border-gray-100 px-4 py-3">
-      <form @submit.prevent="sendMessage" class="flex gap-2">
-        <input v-model="inputText" type="text" placeholder="Ask about your data…"
-          class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          :disabled="loading" />
-        <button type="submit" :disabled="!inputText.trim() || loading || modelStatus === 'loading'"
-          class="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-40 transition-colors">
-          Send
-        </button>
-      </form>
+      <div class="border-t border-gray-100 px-4 py-3" :class="{ 'opacity-30 pointer-events-none': !modelConsent }">
+        <form @submit.prevent="sendMessage" class="flex gap-2">
+          <input v-model="inputText" type="text" placeholder="Ask about your data…"
+            class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            :disabled="loading" />
+          <button type="submit" :disabled="!inputText.trim() || loading || modelStatus === 'loading'"
+            class="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-40 transition-colors">
+            Send
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 </template>
@@ -73,9 +95,18 @@ const props = defineProps({
 const messages = ref([])
 const inputText = ref('')
 const loading = ref(false)
+const consentLoading = ref(false)
 const messagesRef = ref(null)
 
-const { modelStatus, modelProgress, modelError, chat, ensureLoaded } = useModel()
+const { modelStatus, modelProgress, modelError, modelConsent, giveConsent, chat, ensureLoaded } = useModel()
+
+function approveModel() {
+  giveConsent()
+  consentLoading.value = true
+  ensureLoaded().catch(() => {}).finally(() => {
+    consentLoading.value = false
+  })
+}
 
 async function fetchRelevantData(question) {
   if (!props.runSql) return null

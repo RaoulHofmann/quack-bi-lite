@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { pipeline, env } from '@huggingface/transformers'
 
 const MODEL_ID = 'Xenova/Qwen1.5-0.5B-Chat'
-const DTYPE = 'q4f16'
+const DTYPE = 'q4'
 const baseUrl = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
 const MODELS_PATH = baseUrl + 'models/'
 const WASM_PATH = baseUrl + 'wasm/'
@@ -17,6 +17,11 @@ let pipelineRef = null
 export const modelStatus = ref('idle')
 export const modelProgress = ref(0)
 export const modelError = ref('')
+export const modelConsent = ref(false)
+
+export function giveConsent() {
+  modelConsent.value = true
+}
 
 function parseChartSuggestion(text) {
   const suggestions = []
@@ -164,5 +169,5 @@ function resetModel() {
 }
 
 export function useModel() {
-  return { modelStatus, modelProgress, modelError, suggestCharts, chat, localModelsExist, ensureLoaded, resetModel, MODEL_ID }
+  return { modelStatus, modelProgress, modelError, modelConsent, giveConsent, suggestCharts, chat, localModelsExist, ensureLoaded, resetModel, MODEL_ID }
 }
