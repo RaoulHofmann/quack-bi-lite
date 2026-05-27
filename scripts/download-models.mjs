@@ -1,63 +1,93 @@
-import { pipeline, env } from '@huggingface/transformers'
+import { mkdirSync, existsSync, createWriteStream, rmSync, statSync } from 'fs'
+import { resolve, dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { dirname, resolve, join } from 'path'
-import { mkdirSync, existsSync, copyFileSync, readdirSync, statSync, rmSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const MODEL_ID = 'Xenova/Qwen1.5-0.5B-Chat'
-const OUT_DIR = resolve(__dirname, '..', 'public/models')
-const CACHE_DIR = resolve(__dirname, '..', 'node_modules/@huggingface/transformers/.cache')
 
-function copyDir(src, dest) {
-  if (!existsSync(dest)) mkdirSync(dest, { recursive: true })
-  for (const entry of readdirSync(src)) {
-    const srcPath = join(src, entry)
-    const destPath = join(dest, entry)
-    if (statSync(srcPath).isDirectory()) {
-      copyDir(srcPath, destPath)
-    } else {
-      copyFileSync(srcPath, destPath)
+const MODEL_ID = 'Xenova/Qwen1.5-0.5B-Chat'
+const DTYPE = 'q4f16'
+const OUT_DIR = resolve(__dirname, '..', 'public/models')
+const HF_BASE = `https://huggingface.co/${MODEL_ID}/resolve/main`
+
+const FILES = [
+  'config.json',
+  'tokenizer.json',
+  'tokenizer_config.json',
+  `onnx/model_${DTYPE}.onnx`,
+]
+
+async function downloadFile(url, dest) {
+  const dir = dirname(dest)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+
+  const headers = {}
+  if (process.env.HF_TOKEN) {
+    headers['Authorization'] = `Bearer ${process.env.HF_TOKEN}`
+  }
+
+  const resp = await fetch(url, { headers })
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText} — ${url}`)
+
+  const body = resp.body
+  if (!body) {
+    const buf = Buffer.from(await resp.arrayBuffer())
+    const { writeFileSync } = await import('fs')
+    writeFileSync(dest, buf)
+    return
+  }
+
+  const reader = body.getReader()
+  const writer = createWriteStream(dest)
+
+  const pump = async () => {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) { writer.end(); break }
+      writer.write(value)
     }
   }
+
+  await pump()
+
+  return new Promise((resolve, reject) => {
+    writer.on('finish', resolve)
+    writer.on('error', reject)
+  })
 }
 
-async function downloadModel() {
-  console.log(`Downloading ${MODEL_ID}...`)
+function allFilesExist() {
+  return FILES.every(f => {
+    const dest = join(OUT_DIR, MODEL_ID, f)
+    return existsSync(dest) && statSync(dest).size > 0
+  })
+}
+
+async function main() {
+  if (allFilesExist()) {
+    console.log(`Model files already cached at public/models/${MODEL_ID}/ — skipping download`)
+    return
+  }
+
+  console.log(`Downloading ${MODEL_ID} (${DTYPE})...`)
 
   if (existsSync(OUT_DIR)) {
     rmSync(OUT_DIR, { recursive: true, force: true })
   }
   mkdirSync(OUT_DIR, { recursive: true })
 
-  console.log('Creating pipeline (triggers model download)...')
-
-  env.allowRemoteModels = true
-  env.allowCache = true
-
-  const pipe = await pipeline('text-generation', MODEL_ID, { dtype: 'fp16' })
-
-  console.log('Model ready')
-
-  const modelCacheDir = join(CACHE_DIR, MODEL_ID)
-  const modelOutDir = join(OUT_DIR, MODEL_ID)
-
-  console.log(`Copying ${MODEL_ID} to public/models/...`)
-  if (existsSync(modelOutDir)) {
-    rmSync(modelOutDir, { recursive: true, force: true })
+  for (const file of FILES) {
+    const url = `${HF_BASE}/${file}`
+    const dest = join(OUT_DIR, MODEL_ID, file)
+    process.stdout.write(`  ${file} ... `)
+    await downloadFile(url, dest)
+    const size = statSync(dest).size
+    process.stdout.write(`${(size / 1024 / 1024).toFixed(1)}MB\n`)
   }
-  // Preserve exact cache structure (onnx/ subdirectory is expected by the pipeline)
-  copyDir(modelCacheDir, modelOutDir)
 
-  const files = readdirSync(modelOutDir).map(f => {
-    const full = join(modelOutDir, f)
-    if (statSync(full).isDirectory()) {
-      return f + '/' + readdirSync(full).join(', ')
-    }
-    return f + ' (' + (statSync(full).size / 1024 / 1024).toFixed(0) + 'MB)'
-  })
-
-  console.log(`\n✓ Model copied to public/models/${MODEL_ID}/`)
-  console.log(`  Files: ${files.join(', ')}`)
+  console.log(`\n✓ Model files downloaded to public/models/${MODEL_ID}/`)
 }
 
-downloadModel().catch(console.error)
+main().catch(err => {
+  console.error('\n✗ Download failed:', err.message)
+  process.exit(1)
+})

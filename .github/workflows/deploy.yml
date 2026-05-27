@@ -27,6 +27,12 @@ jobs:
 
       - run: npm ci
 
+      - name: Cache model files
+        uses: actions/cache@v4
+        with:
+          path: public/models
+          key: models-${{ hashFiles('scripts/download-models.mjs') }}
+
       - run: npm run generate
 
       - uses: actions/upload-pages-artifact@v3

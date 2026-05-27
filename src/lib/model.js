@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { pipeline, env } from '@huggingface/transformers'
 
 const MODEL_ID = 'Xenova/Qwen1.5-0.5B-Chat'
+const DTYPE = 'q4f16'
 const baseUrl = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
 const MODELS_PATH = baseUrl + 'models/'
 const WASM_PATH = baseUrl + 'wasm/'
@@ -92,9 +93,13 @@ Suggest 2-3 charts to visualize this data.
 <|im_start|>assistant`
 }
 
+function modelFileName() {
+  return `onnx/model_${DTYPE}.onnx`
+}
+
 async function localModelsExist() {
   try {
-    const r = await fetch(MODELS_PATH + MODEL_ID + '/onnx/model_fp16.onnx', { method: 'HEAD', signal: AbortSignal.timeout(5000) })
+    const r = await fetch(MODELS_PATH + MODEL_ID + '/' + modelFileName(), { method: 'HEAD', signal: AbortSignal.timeout(5000) })
     return r.ok
   } catch {
     return false
@@ -111,7 +116,7 @@ async function ensureLoaded() {
     env.allowRemoteModels = localOk ? false : true
 
     pipelineRef = await pipeline('text-generation', MODEL_ID, {
-      dtype: 'fp16',
+      dtype: DTYPE,
       progress_callback: (p) => {
         if (p.status === 'progress' && p.total) {
           modelProgress.value = Math.round((p.loaded / p.total) * 100)
