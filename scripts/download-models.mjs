@@ -4,7 +4,7 @@ import { dirname, resolve, join } from 'path'
 import { mkdirSync, existsSync, copyFileSync, readdirSync, statSync, rmSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const MODEL_ID = 'Xenova/LaMini-GPT-124M'
+const MODEL_ID = 'Xenova/Qwen1.5-0.5B-Chat'
 const OUT_DIR = resolve(__dirname, '..', 'public/models')
 const CACHE_DIR = resolve(__dirname, '..', 'node_modules/@huggingface/transformers/.cache')
 

@@ -1,16 +1,16 @@
 import { ref } from 'vue'
 import { pipeline, env } from '@huggingface/transformers'
 
-const MODEL_ID = 'Xenova/LaMini-GPT-124M'
+const MODEL_ID = 'Xenova/Qwen1.5-0.5B-Chat'
 const baseUrl = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
-const MODELS_URL = window.location.origin + baseUrl + 'models/'
-const WASM_URL = window.location.origin + baseUrl + 'wasm/'
+const MODELS_PATH = baseUrl + 'models/'
+const WASM_PATH = baseUrl + 'wasm/'
 
-env.localModelPath = MODELS_URL
+env.localModelPath = MODELS_PATH
 env.allowLocalModels = true
 env.allowRemoteModels = true
 env.allowCache = true
-env.backends.onnx.wasm.wasmPaths = WASM_URL
+env.backends.onnx.wasm.wasmPaths = WASM_PATH
 
 let pipelineRef = null
 export const modelStatus = ref('idle')
@@ -44,32 +44,57 @@ function extractSql(text) {
   return m ? m[1].trim() : null
 }
 
-function buildPrompt(schemaText, question) {
-  return `You are a data assistant. Given this database schema, answer questions and suggest charts.
+function buildChatPrompt(schemaText, dataSamples, question) {
+  const dataSection = dataSamples && dataSamples.length
+    ? '\n\nActual data samples:\n' + JSON.stringify(dataSamples, null, 2)
+    : ''
+
+  return `<|im_start|>system
+You are a data analysis assistant. You have access to a database with the schema below.
+Answer the user's question using the schema and any provided data samples.
+When suggesting a chart, use this exact format:
+Chart: [title]
+Type: [bar|line|pie|doughnut|polarArea|radar]
+X: [column name]
+Y: [column name]
+Aggregation: [SUM|AVG|COUNT|MIN|MAX]
+
+When writing SQL, put it in a code block with \`\`\`sql.
+Keep responses concise and focused on the data.
 
 Schema:
-${schemaText}
+${schemaText}${dataSection}
+<|im_end|>
+<|im_start|>user
+${question}
+<|im_end|>
+<|im_start|>assistant`
+}
 
-When suggesting a chart, use this format:
+function buildSuggestPrompt(schemaText) {
+  return `<|im_start|>system
+You are a data analysis assistant. Given the database schema below, suggest 2-3 useful charts for visualizing this data.
+For each chart, use this exact format:
 Chart: [title]
 Type: [bar|line|pie]
 X: [column name]
 Y: [column name]
 Aggregation: [SUM|AVG|COUNT]
 
-When writing SQL, use:
-\`\`\`sql
-SELECT ... FROM "table" ...
-\`\`\`
+Only output the chart definitions, no extra text.
 
-Question: ${question}
-
-Answer:`
+Schema:
+${schemaText}
+<|im_end|>
+<|im_start|>user
+Suggest 2-3 charts to visualize this data.
+<|im_end|>
+<|im_start|>assistant`
 }
 
 async function localModelsExist() {
   try {
-    const r = await fetch(MODELS_URL + MODEL_ID + '/onnx/model_fp16.onnx', { method: 'HEAD', signal: AbortSignal.timeout(5000) })
+    const r = await fetch(MODELS_PATH + MODEL_ID + '/onnx/model_fp16.onnx', { method: 'HEAD', signal: AbortSignal.timeout(5000) })
     return r.ok
   } catch {
     return false
@@ -99,9 +124,6 @@ async function ensureLoaded() {
     console.error('[model]', err.message)
     modelError.value = err.message || String(err)
     modelStatus.value = 'error'
-    // Reset so retries can try different settings
-    env.localModelPath = ''
-    env.allowRemoteModels = true
     pipelineRef = null
     throw err
   }
@@ -109,17 +131,23 @@ async function ensureLoaded() {
 
 async function suggestCharts(schemaText) {
   const pipe = await ensureLoaded()
-  const prompt = buildPrompt(schemaText, 'Suggest 2-3 charts to visualize this data.')
-  const r = await pipe(prompt, { max_new_tokens: 200, temperature: 0.3, do_sample: true, top_p: 0.9 })
-  const reply = (r[0]?.generated_text || '').slice(prompt.length).trim()
+  const prompt = buildSuggestPrompt(schemaText)
+  const r = await pipe(prompt, { max_new_tokens: 300, temperature: 0.2, do_sample: true, top_p: 0.9 })
+  const generated = r[0]?.generated_text || ''
+  const reply = generated.includes('<|im_start|>assistant')
+    ? generated.split('<|im_start|>assistant').pop().trim()
+    : generated.slice(prompt.length).trim()
   return parseChartSuggestion(reply)
 }
 
-async function chat(schemaText, question) {
+async function chat(schemaText, question, dataSamples) {
   const pipe = await ensureLoaded()
-  const prompt = buildPrompt(schemaText, question)
-  const r = await pipe(prompt, { max_new_tokens: 300, temperature: 0.4, do_sample: true, top_p: 0.9 })
-  const reply = (r[0]?.generated_text || '').slice(prompt.length).trim()
+  const prompt = buildChatPrompt(schemaText, dataSamples, question)
+  const r = await pipe(prompt, { max_new_tokens: 400, temperature: 0.3, do_sample: true, top_p: 0.9 })
+  const generated = r[0]?.generated_text || ''
+  const reply = generated.includes('<|im_start|>assistant')
+    ? generated.split('<|im_start|>assistant').pop().trim()
+    : generated.slice(prompt.length).trim()
   return { text: reply, charts: parseChartSuggestion(reply), sql: extractSql(reply) }
 }
 

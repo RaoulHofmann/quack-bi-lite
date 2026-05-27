@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col" style="height:500px">
+  <div class="bg-white overflow-hidden flex flex-col" :class="embedded ? 'flex-1 min-h-0 border-0 rounded-none' : 'border border-gray-200 rounded-xl'" :style="embedded ? {} : { height: '500px' }">
     <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
       <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Chat with your data</h3>
       <div class="flex items-center gap-2">
@@ -66,6 +66,8 @@ const emit = defineEmits(['apply-chart', 'run-sql'])
 
 const props = defineProps({
   schemaText: { type: String, default: '' },
+  embedded: { type: Boolean, default: false },
+  runSql: { type: Function, default: null },
 })
 
 const messages = ref([])
@@ -74,6 +76,18 @@ const loading = ref(false)
 const messagesRef = ref(null)
 
 const { modelStatus, modelProgress, modelError, chat, ensureLoaded } = useModel()
+
+async function fetchRelevantData(question) {
+  if (!props.runSql) return null
+  const tableMatch = question.match(/\b(\w+)\b/g) || []
+  const schemaTables = (props.schemaText.match(/Table:\s*(\w+)/g) || []).map(t => t.replace('Table: ', ''))
+  const mentioned = schemaTables.filter(t => tableMatch.some(w => w.toLowerCase() === t.toLowerCase()))
+  if (!mentioned.length) return null
+  try {
+    const rows = await props.runSql('SELECT * FROM "' + mentioned[0] + '" LIMIT 5')
+    return { table: mentioned[0], rows }
+  } catch { return null }
+}
 
 async function sendMessage() {
   const text = inputText.value.trim()
@@ -91,7 +105,8 @@ async function sendMessage() {
         return
       }
     }
-    const result = await chat(props.schemaText, text)
+    const dataSamples = await fetchRelevantData(text)
+    const result = await chat(props.schemaText, text, dataSamples)
     messages.value.push({ role: 'assistant', text: result.text, charts: result.charts, sql: result.sql })
   } catch {
     messages.value.push({ role: 'assistant', text: 'Sorry, I could not process that. Check that the model is available.' })

@@ -50,6 +50,13 @@
       </div>
     </div>
 
+    <div class="border-t border-gray-200 pt-6">
+      <label class="block text-sm font-medium text-gray-600 mb-1">Report description (appears in Excel)</label>
+      <textarea v-model="reportDescription" rows="2"
+        class="w-full max-w-lg border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Monthly sales breakdown by region and product category"></textarea>
+    </div>
+
     <div v-if="savedReports.length" class="border-t border-gray-200 pt-6">
       <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Saved reports</h3>
       <div class="space-y-2">
@@ -103,6 +110,7 @@ const props = defineProps({
 const emit = defineEmits(['load-report'])
 const message = ref('')
 const messageType = ref('success')
+const reportDescription = ref('')
 
 const canExport = computed(() => props.rawRows.length > 0 || (props.reportConfig.charts || []).some(c => c.queryResult?.length))
 const savedReports = ref(JSON.parse(localStorage.getItem('quickbi_reports') || '[]'))
@@ -180,6 +188,7 @@ function styleDataCells(ws, rowCount, colCount) {
         bottom: { style: 'hair' },
         left: { style: 'hair' }, right: { style: 'hair' },
       }
+      if (cell.value instanceof Date) cell.numFmt = 'yyyy-mm-dd'
     }
   }
 }
@@ -188,15 +197,33 @@ function cleanValue(v) {
   if (v == null) return null
   if (typeof v === 'object' && v instanceof Date) return v
   if (typeof v === 'bigint') return Number(v)
-  if (typeof v === 'number') return v
+  if (typeof v === 'number' && !isNaN(v)) return v
   if (typeof v === 'string') {
+    const asDate = tryParseDate(v)
+    if (asDate) return asDate
     const t = v.trim()
-    if (t.startsWith('"') && t.endsWith('"')) return cleanValue(t.slice(1, -1))
-    if (t !== '' && !isNaN(Number(t))) return Number(t)
-    if (t === '' || t === '-' || t === '—') return null
-    return t
+    const stripped = (t.startsWith('"') && t.endsWith('"')) ? t.slice(1, -1).trim() : t
+    if (stripped === '' || stripped === '-' || stripped === '\u2014') return null
+    const num = Number(stripped)
+    if (stripped !== '' && !isNaN(num)) return num
+    return stripped
   }
-  return v
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  return String(v)
+}
+
+function tryParseDate(v) {
+  if (typeof v !== 'string') return null
+  const s = v.trim()
+  if (/^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2})?/.test(s)) {
+    const d = new Date(s)
+    if (!isNaN(d.getTime())) return d
+  }
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    const d = new Date(s)
+    if (!isNaN(d.getTime())) return d
+  }
+  return null
 }
 
 function writeRows(ws, rows, columns) {
@@ -224,6 +251,12 @@ function writeRows(ws, rows, columns) {
 
 // --- Excel export ---
 
+const CHART_COLORS = { bar: 'FF3B82F6', line: 'FF10B981', pie: 'FF8B5CF6', doughnut: 'FFEC4899', polarArea: 'FFF59E0B', radar: 'FF06B6D4' }
+
+function getChartTypeColor(type) {
+  return CHART_COLORS[type] || 'FF1F4E79'
+}
+
 async function exportExcel() {
   const name = (props.reportConfig.name || 'dashboard').replace(/[^a-zA-Z0-9_-]/g, '_')
   const wb = new ExcelJS.Workbook()
@@ -231,148 +264,145 @@ async function exportExcel() {
   wb.created = new Date()
 
   let hasData = false
-
-  // --- Cover sheet ---
-  const coverWs = wb.addWorksheet('Cover')
   const cfg = props.reportConfig
   const genDate = new Date().toLocaleString()
+  const charts = cfg.charts || []
+  const desc = reportDescription.value || ''
 
-  // Title
-  coverWs.getCell('B1').value = cfg.name || 'Quack BI Report'
-  coverWs.getCell('B1').font = { bold: true, size: 22, color: { argb: 'FF1F4E79' } }
-  coverWs.mergeCells('B1:H1')
+  // ========================
+  // COVER SHEET (with dashboard image)
+  // ========================
+  const coverWs = wb.addWorksheet('Cover')
+  coverWs.getColumn(1).width = 4
+  coverWs.getColumn(2).width = 80
   coverWs.getRow(1).height = 36
 
-  // Dashboard screenshot as the hero
-  const dashImg = props.dashboardImage
-  if (dashImg) {
-    const b64 = dashImg.split(',')[1]
-    if (b64) {
-      const imageId = wb.addImage({ base64: b64, extension: 'png' })
-      coverWs.addImage(imageId, {
-        tl: { col: 1, row: 2 },
-        ext: { width: 650, height: 380 },
-      })
-      // Set row heights for the image area (approx 380px / 15px per row = ~25 rows)
-      for (let r = 3; r < 28; r++) coverWs.getRow(r).height = 15
-    }
+  coverWs.getCell('B1').value = cfg.name || 'Quack BI Report'
+  coverWs.getCell('B1').font = { bold: true, size: 22, color: { argb: 'FF1F4E79' } }
+  coverWs.mergeCells('B1:B1')
+
+  if (desc) {
+    coverWs.getCell('B2').value = desc
+    coverWs.getCell('B2').font = { size: 11, color: { argb: 'FF64748B' }, italic: true }
+    coverWs.getRow(2).height = 20
   }
 
-  // Metadata section below the image
-  const metaRow = dashImg ? 29 : 3
-  coverWs.getCell('B' + metaRow).value = 'Generated: ' + genDate
-  coverWs.getCell('B' + metaRow).font = { size: 10, color: { argb: 'FF64748B' } }
-  coverWs.mergeCells('B' + metaRow + ':H' + metaRow)
+  const infoRow = desc ? 4 : 3
+  coverWs.getCell('B' + infoRow).value = 'Generated: ' + genDate + '  |  Tables: ' + (cfg.tables || []).length + '  |  Charts: ' + charts.length
+  coverWs.getCell('B' + infoRow).font = { size: 10, color: { argb: 'FF64748B' } }
 
-  const mr = metaRow + 2
-  coverWs.getCell('B' + mr).value = 'Data Sources'
-  coverWs.getCell('B' + mr).font = { bold: true, size: 11, color: { argb: 'FF1F4E79' } }
-  if ((cfg.tables || []).length) {
-    const tr = mr + 1
-    ;['B' + tr, 'C' + tr, 'D' + tr, 'E' + tr].forEach(c => {
-      coverWs.getCell(c).font = HEADER_FONT; coverWs.getCell(c).fill = HEADER_FILL
+  // Add dashboard screenshot below header
+  let coverImgRow = infoRow + 2
+  const dashB64 = props.dashboardImage?.split(',')[1]
+  if (dashB64) {
+    const imgObj = new Image()
+    imgObj.src = props.dashboardImage
+    await new Promise(r => { imgObj.onload = r })
+    const ar = imgObj.naturalHeight / imgObj.naturalWidth
+    const imgW = 640
+    const imgH = Math.round(imgW * ar)
+    const imageId = wb.addImage({ base64: dashB64, extension: 'png' })
+    coverWs.addImage(imageId, {
+      tl: { col: 0, row: coverImgRow - 1 },
+      ext: { width: imgW, height: imgH },
     })
-    coverWs.getCell('B' + tr).value = 'Table'
-    coverWs.getCell('C' + tr).value = 'File'
-    coverWs.getCell('D' + tr).value = 'Cols'
-    coverWs.getCell('E' + tr).value = 'Rows'
-    cfg.tables.forEach((t, i) => {
-      const r = tr + 1 + i
-      const tbl = props.tables.find(x => x.name === t.name)
-      coverWs.getCell('B' + r).value = t.name
-      coverWs.getCell('C' + r).value = t.fileName || ''
-      coverWs.getCell('D' + r).value = tbl ? tbl.columns.length : ''
-      coverWs.getCell('E' + r).value = tbl ? tbl.rowCount : ''
-    })
+    coverWs.getRow(coverImgRow).height = imgH * 0.75 + 10
+    coverImgRow += Math.ceil(imgH / 15) + 1
   }
 
-  const charts = cfg.charts || []
-  if (charts.length) {
-    const chartSec = mr + (cfg.tables || []).length + 3
-    coverWs.getCell('B' + chartSec).value = 'Charts (' + charts.length + ')'
-    coverWs.getCell('B' + chartSec).font = { bold: true, size: 11, color: { argb: 'FF1F4E79' } }
-    const chr = chartSec + 1
-    ;['B' + chr, 'C' + chr, 'D' + chr, 'E' + chr, 'F' + chr].forEach(c => {
-      coverWs.getCell(c).font = HEADER_FONT; coverWs.getCell(c).fill = HEADER_FILL
-    })
-    coverWs.getCell('B' + chr).value = 'Title'
-    coverWs.getCell('C' + chr).value = 'Type'
-    coverWs.getCell('D' + chr).value = 'X'
-    coverWs.getCell('E' + chr).value = 'Y'
-    coverWs.getCell('F' + chr).value = 'Agg'
-    charts.forEach((c, i) => {
-      const r = chr + 1 + i
-      coverWs.getCell('B' + r).value = c.title || ''
-      coverWs.getCell('C' + r).value = c.chartType || ''
-      coverWs.getCell('D' + r).value = c.xCol || ''
-      coverWs.getCell('E' + r).value = c.yCol || ''
-      coverWs.getCell('F' + r).value = c.agg || ''
-    })
-  }
+  // Brief metadata summary below image
+  coverWs.getCell('B' + coverImgRow).value = 'Charts: ' + charts.length + '  |  Data sources: ' + (cfg.tables || []).map(t => t.name).join(', ')
+  coverWs.getCell('B' + coverImgRow).font = { size: 10, color: { argb: 'FF64748B' } }
 
-  coverWs.getColumn(1).width = 4
-  coverWs.getColumn(2).width = 22
-  coverWs.getColumn(3).width = 16
-  coverWs.getColumn(4).width = 10
-  coverWs.getColumn(5).width = 10
-  coverWs.getColumn(6).width = 14
-  coverWs.getColumn(7).width = 14
-  coverWs.getColumn(8).width = 14
-
-  // --- Per-table data sheets ---
-  for (const table of props.tables) {
-    try {
-      const allRows = await props.fetchFullTable(table.name)
-      if (!allRows.length) continue
-      const ws = wb.addWorksheet(sanitizeSheetName(table.name))
-      const { lastRow, lastCol } = writeRows(ws, allRows, table.columns)
-      addAutoFilter(ws, lastCol, lastRow)
-      hasData = true
-    } catch {}
-  }
-
-  // --- All Data sheet (joined) ---
+  // ========================
+  // PRE-FETCH ALL DATA (for chart formulas)
+  // ========================
   let allDataSheetName = null
   let allDataHeaderCols = []
   try {
     const allData = await props.chartDataQuery()
     if (allData.length) {
-      const dataCols = Object.keys(allData[0])
-      const ws = wb.addWorksheet('All Data')
-      const { lastRow, lastCol, headers } = writeRows(ws, allData, dataCols)
-      addAutoFilter(ws, lastCol, lastRow)
+      allDataHeaderCols = Object.keys(allData[0])
       allDataSheetName = 'All Data'
-      allDataHeaderCols = headers
-      hasData = true
     }
   } catch {}
-
-  // --- Chart sheets (data + embedded image) ---
-  // Build column letter map for the sheet we'll reference in formulas
   const refSheet = allDataSheetName || (props.tables.length > 0 ? sanitizeSheetName(props.tables[0].name) : null)
   const refCols = allDataSheetName ? allDataHeaderCols : (props.tables[0]?.columns || []).map(c => c.name)
   const refColLetters = {}
   refCols.forEach((c, i) => { refColLetters[c] = colLetter(i) })
 
+  // ========================
+  // CHART SHEETS (with formulas)
+  // ========================
   for (const img of props.chartImages) {
     const data = img.queryResult
     if (!data || !data.length) continue
     const ws = wb.addWorksheet(sanitizeSheetName(img.title || 'Chart'))
     const keys = Object.keys(data[0])
+    const chartColor = getChartTypeColor(img.chartType)
 
-    // Header row
-    ws.addRow(keys)
+    // Colored header banner (row 1-2)
+    ws.mergeCells(1, 1, 1, keys.length)
+    const titleCell = ws.getCell(1, 1)
+    titleCell.value = img.title || 'Chart'
+    titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: chartColor } }
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+    ws.getRow(1).height = 28
 
-    // Figure out formula references to the reference sheet
-    const xLetter = refColLetters[img.xCol]
-    const yLetter = refColLetters[img.yCol]
-    const canUseFormula = refSheet && xLetter && yLetter
+    // Metadata row (row 2)
+    ws.mergeCells(2, 1, 2, keys.length)
+    const metaCell = ws.getCell(2, 1)
+    metaCell.value = 'Type: ' + (img.chartType || '\u2014') + '  |  X: ' + (img.xCol || '\u2014') + '  |  Y: ' + (img.yCol || '\u2014') + '  |  Aggregation: ' + (img.agg || '\u2014')
+    metaCell.font = { size: 10, color: { argb: 'FF64748B' }, italic: true }
+    metaCell.alignment = { horizontal: 'center', vertical: 'middle' }
+    ws.getRow(2).height = 22
+
+    // Data header row (row 4)
+    const dataHeaderRow = 4
+    ws.addRow([]) // row 3 blank
+    ws.addRow(keys) // row 4 = actual header
+
+    // Determine formula reference sheet
+    const isPivotChart = img._fromPivot && img._pivotRef >= 0
+    const pivotRef = isPivotChart ? img._pivotRef : -1
+    const pivotDataList = cfg.pivots || []
+    const pivotSheetName = isPivotChart
+      ? (pivotDataList.length > 1 ? 'Pivot ' + (pivotRef + 1) : 'Pivot Data')
+      : null
+
+    let formulaRefSheet, formulaXLetter, formulaYLetter, canUseFormula
+
+    if (isPivotChart && pivotSheetName && pivotRef < pivotDataList.length) {
+      // Pivot chart: reference the Pivot Data sheet using VLOOKUP
+      const pivotData = pivotDataList[pivotRef]
+      formulaRefSheet = pivotSheetName
+      const yIdx = (pivotData.headers || []).indexOf(img.yCol)
+      if (yIdx >= 0) {
+        formulaXLetter = 'A' // Row column
+        formulaYLetter = colLetter(yIdx + 1) // +1 because A is 'Row'
+        const lastColLetter = colLetter(pivotData.headers.length) // 0-indexed
+        canUseFormula = true
+        // Store info for formula construction
+        img._pivotYColIdx = yIdx + 2 // 1-based column index (A=1, B=2...)
+        img._pivotLastCol = lastColLetter
+      } else {
+        canUseFormula = false
+      }
+    } else {
+      // Regular chart: reference All Data or first table
+      formulaRefSheet = refSheet
+      formulaXLetter = refColLetters[img.xCol]
+      formulaYLetter = refColLetters[img.yCol]
+      canUseFormula = formulaRefSheet && formulaXLetter && formulaYLetter && allDataSheetName
+    }
+
     const agg = (img.agg || 'SUM').toUpperCase()
 
-    // Data rows with formulas where possible
+    // Data rows with formulas when possible, static values otherwise
     for (let ri = 0; ri < data.length; ri++) {
       const r = data[ri]
-      const rowNum = ri + 2
+      const rowNum = dataHeaderRow + 1 + ri
       const rowData = []
       for (let ci = 0; ci < keys.length; ci++) {
         const key = keys[ci]
@@ -381,14 +411,20 @@ async function exportExcel() {
         } else if (ci === 1 && canUseFormula) {
           const xVal = r[keys[0]]
           if (xVal != null) {
-            const sheet = "'" + refSheet + "'"
+            const sheet = "'" + formulaRefSheet + "'"
             let formula
-            if (agg === 'SUM') formula = 'SUMIF(' + sheet + '!' + xLetter + ':' + xLetter + ',A' + rowNum + ',' + sheet + '!' + yLetter + ':' + yLetter + ')'
-            else if (agg === 'AVG') formula = 'AVERAGEIF(' + sheet + '!' + xLetter + ':' + xLetter + ',A' + rowNum + ',' + sheet + '!' + yLetter + ':' + yLetter + ')'
-            else if (agg === 'MIN') formula = 'MINIFS(' + sheet + '!' + yLetter + ':' + yLetter + ',' + sheet + '!' + xLetter + ':' + xLetter + ',A' + rowNum + ')'
-            else if (agg === 'MAX') formula = 'MAXIFS(' + sheet + '!' + yLetter + ':' + yLetter + ',' + sheet + '!' + xLetter + ':' + xLetter + ',A' + rowNum + ')'
-            else if (agg === 'COUNT') formula = 'COUNTIF(' + sheet + '!' + xLetter + ':' + xLetter + ',A' + rowNum + ')'
-            else formula = ''
+            if (isPivotChart) {
+              formula = 'VLOOKUP(A' + rowNum + ',' + sheet + '!A:' + img._pivotLastCol + ',' + img._pivotYColIdx + ',FALSE)'
+            } else {
+              const xL = formulaXLetter
+              const yL = formulaYLetter
+              if (agg === 'SUM') formula = 'SUMIF(' + sheet + '!' + xL + ':' + xL + ',A' + rowNum + ',' + sheet + '!' + yL + ':' + yL + ')'
+              else if (agg === 'AVG') formula = 'AVERAGEIF(' + sheet + '!' + xL + ':' + xL + ',A' + rowNum + ',' + sheet + '!' + yL + ':' + yL + ')'
+              else if (agg === 'MIN') formula = 'MINIFS(' + sheet + '!' + yL + ':' + yL + ',' + sheet + '!' + xL + ':' + xL + ',A' + rowNum + ')'
+              else if (agg === 'MAX') formula = 'MAXIFS(' + sheet + '!' + yL + ':' + yL + ',' + sheet + '!' + xL + ':' + xL + ',A' + rowNum + ')'
+              else if (agg === 'COUNT') formula = 'COUNTIF(' + sheet + '!' + xL + ':' + xL + ',A' + rowNum + ')'
+              else formula = ''
+            }
             rowData.push(formula ? { formula } : cleanValue(r[key]))
           } else {
             rowData.push(cleanValue(r[key]))
@@ -400,14 +436,30 @@ async function exportExcel() {
       ws.addRow(rowData)
     }
 
-    // Style
-    const lastRow = data.length + 1
+    // Style data header and cells
+    const lastRow = dataHeaderRow + data.length
     const lastCol = keys.length
-    styleHeaderRow(ws, lastCol)
-    styleDataCells(ws, lastRow, lastCol)
-    keys.forEach((k, i) => { ws.getColumn(i + 1).width = Math.max(12, Math.min(k.length * 2 + 6, 30)) })
+    for (let c = 1; c <= lastCol; c++) {
+      const cell = ws.getCell(dataHeaderRow, c)
+      cell.font = HEADER_FONT
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: chartColor } }
+      cell.alignment = { vertical: 'middle', wrapText: true }
+      cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+    }
+    ws.getRow(dataHeaderRow).height = 22
 
-    // Embed chart image below data, preserving aspect ratio
+    for (let r = dataHeaderRow + 1; r <= lastRow; r++) {
+      for (let c = 1; c <= lastCol; c++) {
+        const cell = ws.getCell(r, c)
+        if (r % 2 === 0) cell.fill = ALT_ROW_FILL
+        cell.border = { bottom: { style: 'hair' }, left: { style: 'hair' }, right: { style: 'hair' } }
+        if (cell.value instanceof Date) cell.numFmt = 'yyyy-mm-dd'
+      }
+    }
+
+    keys.forEach((k, i) => { ws.getColumn(i + 1).width = Math.max(14, Math.min(k.length * 2 + 6, 30)) })
+
+    // Embed chart image below data
     const imgRow = lastRow + 2
     const b64 = img.dataUrl.split(',')[1]
     if (b64) {
@@ -415,7 +467,7 @@ async function exportExcel() {
       imgObj.src = img.dataUrl
       await new Promise(r => { imgObj.onload = r })
       const ar = imgObj.naturalHeight / imgObj.naturalWidth
-      const imgW = 480
+      const imgW = 520
       const imgH = Math.round(imgW * ar)
       const imageId = wb.addImage({ base64: b64, extension: 'png' })
       ws.addImage(imageId, {
@@ -423,9 +475,65 @@ async function exportExcel() {
         ext: { width: imgW, height: imgH },
       })
     }
-    addAutoFilter(ws, lastCol, lastRow)
+    ws.autoFilter = { from: { row: dataHeaderRow, col: 1 }, to: { row: lastRow, col: lastCol } }
     hasData = true
   }
+
+  // ========================
+  // PIVOT DATA SHEETS
+  // ========================
+  const pivotDataList = cfg.pivots || []
+  for (let pi = 0; pi < pivotDataList.length; pi++) {
+    const pivotData = pivotDataList[pi]
+    if (!pivotData || !pivotData.result || !pivotData.result.length) continue
+    const ws = wb.addWorksheet(pivotDataList.length > 1 ? 'Pivot ' + (pi + 1) : 'Pivot Data')
+    const allHeaders = ['Row', ...pivotData.headers]
+    ws.addRow(allHeaders)
+    for (const row of pivotData.result) {
+      ws.addRow(allHeaders.map(h => cleanValue(h === 'Row' ? row._row : row[h])))
+    }
+    allHeaders.forEach((h, i) => {
+      const maxLen = pivotData.result.reduce((m, r) => {
+        const v = h === 'Row' ? r._row : r[h]; const s = v != null ? String(v).length : 0
+        return s > m ? s : m
+      }, h.length)
+      ws.getColumn(i + 1).width = Math.min(Math.max(maxLen + 3, 8), 40)
+    })
+    const lr = pivotData.result.length + 1
+    const lc = allHeaders.length
+    styleHeaderRow(ws, lc)
+    styleDataCells(ws, lr, lc)
+    addAutoFilter(ws, lc, lr)
+    hasData = true
+  }
+
+  // ========================
+  // PER-TABLE DATA SHEETS
+  // ========================
+  for (const table of props.tables) {
+    try {
+      const allRows = await props.fetchFullTable(table.name)
+      if (!allRows.length) continue
+      const ws = wb.addWorksheet(sanitizeSheetName(table.name))
+      const { lastRow, lastCol } = writeRows(ws, allRows, table.columns)
+      addAutoFilter(ws, lastCol, lastRow)
+      hasData = true
+    } catch {}
+  }
+
+  // ========================
+  // ALL DATA SHEET
+  // ========================
+  try {
+    const allData = await props.chartDataQuery()
+    if (allData.length) {
+      const dataCols = Object.keys(allData[0])
+      const ws = wb.addWorksheet('All Data')
+      const { lastRow, lastCol, headers } = writeRows(ws, allData, dataCols)
+      addAutoFilter(ws, lastCol, lastRow)
+      hasData = true
+    }
+  } catch {}
 
   if (!hasData) { showMessage('No data to export.', 'error'); return }
 

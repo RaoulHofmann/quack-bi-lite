@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-gray-50">
     <header class="bg-white border-b border-gray-200 px-6 py-3">
-      <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="max-w-[1600px] mx-auto flex items-center justify-between">
         <div class="flex items-center gap-2">
           <img :src="duckIconSrc" class="w-7 h-7" alt="Quack BI" />
           <span class="text-lg font-bold text-gray-800">Quack BI</span>
@@ -52,7 +52,7 @@
       </div>
     </div>
 
-    <main class="max-w-7xl mx-auto p-6">
+    <main class="max-w-[1600px] mx-auto p-6">
       <!-- Step 1: Upload -->
       <div v-if="currentStep === 1">
         <div class="mb-6">
@@ -116,12 +116,12 @@
               :tables="tables"
               :fetch-full-table="fetchFullTableData"
               :run-sql="runSqlQuery"
-              @add-pivot-chart="onAiChartSuggestion"
             />
           </div>
           <div>
             <ChatPanel
               :schema-text="exploreSchemaText"
+              :run-sql="runSqlQuery"
               @apply-chart="onAiChartSuggestion"
               @run-sql="onAiRunSql"
             />
@@ -136,14 +136,14 @@
       </div>
 
       <!-- Step 3: Build -->
-      <div v-if="currentStep === 3 && tables.length">
-        <div class="mb-6">
+      <div v-if="currentStep === 3 && tables.length" class="flex flex-col" style="height:calc(100vh - 4rem)">
+        <div class="mb-6 shrink-0">
           <h2 class="text-xl font-semibold text-gray-800">Build your dashboard</h2>
           <p class="text-sm text-gray-500 mt-1">Drag charts to position them. Click to configure in the properties panel.</p>
         </div>
 
         <!-- Data sources & join config -->
-        <div class="bg-white border border-gray-200 rounded-xl p-4 mb-6">
+        <div class="bg-white border border-gray-200 rounded-xl p-4 mb-6 shrink-0">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Data sources</h3>
             <button @click="showJoinConfig = !showJoinConfig" class="text-xs text-blue-600 hover:underline">
@@ -220,7 +220,7 @@
         </div>
 
         <!-- Suggested charts -->
-        <div v-if="chartSuggestions.length || aiSuggestions.length" class="bg-white border border-gray-200 rounded-xl p-4 mb-6">
+        <div v-if="chartSuggestions.length || aiSuggestions.length" class="bg-white border border-gray-200 rounded-xl p-4 mb-6 shrink-0">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Suggested charts</h3>
             <button @click="runAiSuggest" :disabled="aiStatus === 'loading'"
@@ -247,32 +247,73 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
-          <div class="xl:col-span-3">
-            <DashboardCanvas
-              ref="canvasRef"
-              :charts="charts"
-              :texts="texts"
-              :columns="allColumns"
-              :numeric-columns="allNumericCols"
-              :view-only="viewOnly"
-              @update="onChartUpdate"
-              @add-chart="addChart"
-              @remove-chart="removeChart"
-              @update-text="onTextUpdate"
-              @add-text="addTextItem"
-              @delete-text="removeTextItem"
-              @toggle-view="viewOnly = !viewOnly"
-              @auto-layout="autoLayoutCharts"
-            />
+        <!-- Saved pivot tables -->
+        <div v-for="(pivot, pi) in sharedPivots" :key="pivot.id" class="mb-4 shrink-0 relative bg-white border border-gray-200 rounded-xl p-4">
+          <button @click="removePivot(pi)" class="absolute top-2 right-2 text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+          <div class="mb-2 text-xs text-gray-400 italic">Pivot {{ pi + 1 }}</div>
+          <div class="flex items-center justify-end gap-2 mb-2">
+            <button @click="onAiChartSuggestion({ label: pivot.rowCol + ' pivot', xCol: pivot.rowCol, yCol: pivot.valCol, agg: pivot.agg, chartType: 'bar', _fromPivot: true, _pivotHeaders: pivot.headers, _pivotRef: pi })"
+              class="text-xs bg-purple-600 text-white px-2.5 py-1 rounded hover:bg-purple-700 transition-colors">
+              Add chart from pivot
+            </button>
           </div>
-          <div class="hidden xl:block">
-            <ChatPanel
-              :schema-text="exploreSchemaText"
-              @apply-chart="onAiChartSuggestion"
-              @run-sql="onAiRunSql"
-            />
+          <div class="overflow-x-auto max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
+            <table class="w-full text-xs border-collapse">
+              <thead class="sticky top-0 z-10">
+                <tr>
+                  <th class="px-2 py-1.5 text-left font-semibold text-gray-500 uppercase border-b bg-gray-100 whitespace-nowrap">{{ pivot.rowCol || 'Row' }}</th>
+                  <th v-for="h in pivot.headers" :key="h" class="px-2 py-1.5 text-right font-semibold text-gray-500 uppercase border-b bg-gray-100 whitespace-nowrap">{{ h }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, ri) in pivot.result" :key="ri" class="border-b border-gray-50 even:bg-gray-50/50 hover:bg-blue-50/30">
+                  <td class="px-2 py-1 font-medium text-gray-700 whitespace-nowrap">{{ row._row }}</td>
+                  <td v-for="h in pivot.headers" :key="h" class="px-2 py-1 text-right text-gray-600 whitespace-nowrap">{{ row[h] != null ? (typeof row[h] === 'number' ? row[h].toLocaleString() : String(row[h]).slice(0, 50)) : '\u2014' }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+        </div>
+
+        <!-- Create new pivot -->
+        <div class="mb-6 shrink-0">
+          <details class="bg-white border border-gray-200 rounded-xl">
+            <summary class="px-4 py-2.5 text-sm font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-50 rounded-xl select-none">Create pivot table</summary>
+            <div class="border-t border-gray-100">
+              <PivotTable
+                v-if="tables[0]"
+                :selected-table="tables[0].name"
+                :table-columns="tables[0]?.columns || []"
+                :numeric-cols="allNumericCols"
+                :run-sql="runSqlQuery"
+                @add-pivot-chart="onAiChartSuggestion"
+                @pivot-generated="addPivot"
+              />
+            </div>
+          </details>
+        </div>
+
+        <div class="flex-1 min-h-0">
+          <DashboardCanvas
+            ref="canvasRef"
+            :charts="charts"
+            :texts="texts"
+            :columns="allColumns"
+            :numeric-columns="allNumericCols"
+            :view-only="viewOnly"
+            :schema-text="exploreSchemaText"
+            :run-sql="runSqlQuery"
+            @update="onChartUpdate"
+            @add-chart="addChart"
+            @remove-chart="removeChart"
+            @update-text="onTextUpdate"
+            @add-text="addTextItem"
+            @delete-text="removeTextItem"
+            @toggle-view="viewOnly = !viewOnly"
+            @auto-layout="autoLayoutCharts"
+            @apply-chart="onAiChartSuggestion"
+            @run-sql="onAiRunSql"
+          />
         </div>
       </div>
 
@@ -308,7 +349,7 @@
 
     <ToastContainer />
     <div v-if="tables.length && currentStep < 4" class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 px-6 py-3">
-      <div class="max-w-7xl mx-auto flex justify-end">
+      <div class="max-w-[1600px] mx-auto flex justify-end">
         <button @click="goToExport"
           class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
           {{ currentStep === 1 ? 'Continue to explore' : currentStep === 2 ? 'Continue to build' : 'Continue to export' }}
@@ -319,7 +360,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import * as duckdb from '@duckdb/duckdb-wasm'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, RadialLinearScale, Title, Tooltip, Legend } from 'chart.js'
 import mvpWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
@@ -333,6 +374,7 @@ import CsvUploader from './components/CsvUploader.vue'
 import DashboardCanvas from './components/DashboardCanvas.vue'
 import ExportTools from './components/ExportTools.vue'
 import DataExplorer from './components/DataExplorer.vue'
+import PivotTable from './components/PivotTable.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import ChatPanel from './components/ChatPanel.vue'
 
@@ -361,6 +403,7 @@ const aiProgress = ref(0)
 const loadingSamples = ref(false)
 const sampleFiles = 3
 const dashboardName = ref('My Report')
+const sharedPivots = ref([])
 let idCounter = 0
 const usedTableNames = new Set()
 
@@ -405,6 +448,9 @@ async function onAiChartSuggestion(s) {
     x: offset % 600, y: offset, width: 420, height: 300,
     queryResult: [], resultColumns: [], chartData: null,
     _loading: false, _error: '',
+    _fromPivot: s._fromPivot || false,
+    _pivotHeaders: s._pivotHeaders || null,
+    _pivotRef: s._pivotRef ?? -1,
   }
   charts.value = [...charts.value, chart]
   setTimeout(() => runChartQuery(chart), 100)
@@ -461,8 +507,10 @@ const reportConfig = computed(() => ({
     limit: c.limit, filter: c.filter, table: c.table,
     x: c.x, y: c.y, width: c.width, height: c.height,
     queryResult: c.queryResult, resultColumns: c.resultColumns,
+    _fromPivot: c._fromPivot, _pivotHeaders: c._pivotHeaders, _pivotRef: c._pivotRef,
   })),
   texts: texts.value.map(t => ({ id: t.id, text: t.text, x: t.x, y: t.y, fontSize: t.fontSize, bold: t.bold, color: t.color })),
+  pivots: sharedPivots.value.map(p => ({ rowCol: p.rowCol, colCol: p.colCol, valCol: p.valCol, agg: p.agg, result: p.result, headers: p.headers })),
 }))
 
 function cleanValue(v) {
@@ -655,10 +703,57 @@ async function captureDashboardScreenshot() {
     scrollEl.style.overflow = 'visible'
     const canvas = await html2canvas(inner, { useCORS: true, scale: 2, backgroundColor: '#ffffff' })
     scrollEl.style.overflow = origOverflow
-    return canvas.toDataURL('image/png')
+    const cropped = cropToContent(canvas)
+    return cropped.toDataURL('image/png')
   } catch {
     return null
   }
+}
+
+function cropToContent(canvas) {
+  const ctx = canvas.getContext('2d')
+  const { width, height } = canvas
+  const data = ctx.getImageData(0, 0, width, height).data
+  const threshold = 240
+
+  function isWhite(x, y) {
+    const i = (y * width + x) * 4
+    return data[i] >= threshold && data[i + 1] >= threshold && data[i + 2] >= threshold
+  }
+
+  let top = 0, bottom = height - 1, left = 0, right = width - 1
+
+  for (let y = 0; y < height; y++) {
+    let allWhite = true
+    for (let x = 0; x < width; x++) { if (!isWhite(x, y)) { allWhite = false; break } }
+    if (!allWhite) { top = y; break }
+  }
+
+  for (let y = height - 1; y >= 0; y--) {
+    let allWhite = true
+    for (let x = 0; x < width; x++) { if (!isWhite(x, y)) { allWhite = false; break } }
+    if (!allWhite) { bottom = y; break }
+  }
+
+  for (let x = 0; x < width; x++) {
+    let allWhite = true
+    for (let y = top; y <= bottom; y++) { if (!isWhite(x, y)) { allWhite = false; break } }
+    if (!allWhite) { left = x; break }
+  }
+
+  for (let x = width - 1; x >= 0; x--) {
+    let allWhite = true
+    for (let y = top; y <= bottom; y++) { if (!isWhite(x, y)) { allWhite = false; break } }
+    if (!allWhite) { right = x; break }
+  }
+
+  const cropW = right - left + 1
+  const cropH = bottom - top + 1
+  const out = document.createElement('canvas')
+  out.width = cropW
+  out.height = cropH
+  out.getContext('2d').drawImage(canvas, left, top, cropW, cropH, 0, 0, cropW, cropH)
+  return out
 }
 
 // Text annotations
@@ -726,6 +821,14 @@ function autoLayoutCharts() {
     x: margin + (i % cols) * (chartW + gap),
     y: margin + Math.floor(i / cols) * (chartH + gap),
   }))
+}
+
+function addPivot(data) {
+  sharedPivots.value = [...sharedPivots.value, { id: uid(), ...data }]
+}
+
+function removePivot(index) {
+  sharedPivots.value = sharedPivots.value.filter((_, i) => i !== index)
 }
 
 async function runAiSuggest() {
@@ -817,6 +920,18 @@ async function runSqlQuery(sql) {
     return toPlain(res.toArray())
   } catch { return [] }
 }
+
+// Pre-load AI model in background after data is uploaded
+watch(() => tables.value.length, (len) => {
+  if (len > 0) {
+    setTimeout(async () => {
+      try {
+        const { useModel } = await import('./lib/model')
+        await useModel().ensureLoaded()
+      } catch {}
+    }, 2000)
+  }
+})
 
 function onLoadReport(config) {
   dashboardName.value = config.name || 'Imported Report'

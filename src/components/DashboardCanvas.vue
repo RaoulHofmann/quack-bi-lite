@@ -1,7 +1,7 @@
 <template>
-  <div class="flex gap-4" style="min-height:600px">
-    <div :class="viewOnly ? 'w-full' : 'flex-1'">
-      <div class="bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col" :class="viewOnly ? 'border-0 rounded-none' : ''">
+  <div class="flex gap-4 h-full" style="min-height:500px">
+      <div :class="viewOnly ? 'w-full' : 'flex-1 flex flex-col min-h-0'">
+      <div class="bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col flex-1 min-h-0" :class="viewOnly ? 'border-0 rounded-none' : ''">
         <div class="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
           <div class="flex items-center gap-3">
             <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Canvas</span>
@@ -24,8 +24,8 @@
             </button>
           </div>
         </div>
-        <div class="overflow-auto relative select-none canvas-scroll flex-1"
-          :class="viewOnly ? 'h-[90vh]' : 'min-h-[500px]'"
+        <div class="overflow-auto relative select-none canvas-scroll flex-1 min-h-0"
+          :class="viewOnly ? 'h-[90vh]' : ''"
           @mousemove="onMouseMove" @mouseup="onMouseUp" @mouseleave="onMouseUp" @click.self="selectedId = null">
           <div class="relative" :style="canvasStyle">
             <svg class="absolute inset-0 pointer-events-none" width="100%" height="100%">
@@ -94,9 +94,25 @@
       </div>
     </div>
 
-    <div v-if="!viewOnly && selectedItem" class="w-72 shrink-0 bg-white border border-gray-200 rounded-xl overflow-y-auto" style="max-height:660px">
-        <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50/50"><h3 class="text-sm font-semibold text-gray-700">Properties</h3></div>
-        <div v-if="selectedItem._type === 'chart'" class="p-4 space-y-4">
+    <div v-if="!viewOnly" class="w-72 shrink-0 bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden">
+      <div class="flex border-b border-gray-100 bg-gray-50/50 shrink-0">
+        <button @click="sidebarTab = 'properties'"
+          class="flex-1 px-3 py-2.5 text-xs font-medium transition-colors text-center"
+          :class="sidebarTab === 'properties' ? 'text-blue-600 border-b-2 border-blue-600 bg-white' : 'text-gray-500 hover:text-gray-700'">
+          Properties
+        </button>
+        <button @click="sidebarTab = 'chat'"
+          class="flex-1 px-3 py-2.5 text-xs font-medium transition-colors text-center"
+          :class="sidebarTab === 'chat' ? 'text-purple-600 border-b-2 border-purple-600 bg-white' : 'text-gray-500 hover:text-gray-700'">
+          Chat
+        </button>
+      </div>
+
+      <div v-if="sidebarTab === 'properties'" class="flex-1 overflow-y-auto">
+        <div v-if="!selectedItem" class="p-4 text-center text-gray-400 text-sm mt-8">
+          Select a chart or text annotation to edit its properties
+        </div>
+        <div v-if="selectedItem?._type === 'chart'" class="p-4 space-y-4">
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Title</label><input :value="selectedItem.title" @input="emitUpdate('title', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">X axis</label><select :value="selectedItem.xCol" @change="emitUpdate('xCol', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="" disabled>Select column</option><option v-for="c in columns" :key="c.name" :value="c.name">{{ c.name }}</option></select></div>
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Y axis</label><select :value="selectedItem.yCol" @change="emitUpdate('yCol', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="" disabled>Select column</option><option v-for="c in numericColumns" :key="c.name" :value="c.name">{{ c.name }}</option></select></div>
@@ -110,7 +126,7 @@
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Position &amp; Size</label><div class="grid grid-cols-2 gap-2"><div><label class="text-xs text-gray-400 block">X</label><input :value="selectedItem.x" @change="emitUpdate('x', Math.max(0,Number($event.target.value)||0))" type="number" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">Y</label><input :value="selectedItem.y" @change="emitUpdate('y', Math.max(0,Number($event.target.value)||0))" type="number" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">W</label><input :value="selectedItem.width" @change="emitUpdate('width', Math.max(200,Number($event.target.value)||400))" type="number" min="200" step="10" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">H</label><input :value="selectedItem.height" @change="emitUpdate('height', Math.max(150,Number($event.target.value)||300))" type="number" min="150" step="10" class="w-full border rounded-md p-1.5 text-sm" /></div></div></div>
           <div class="pt-2 border-t"><button @click="downloadImage(selectedItem)" class="w-full text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded py-1.5 font-medium">Download PNG</button></div>
         </div>
-        <div v-if="selectedItem._type === 'text'" class="p-4 space-y-4">
+        <div v-if="selectedItem?._type === 'text'" class="p-4 space-y-4">
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Content</label><textarea :value="selectedItem.text" @input="emitTextUpdate('text', $event.target.value)" rows="3" class="w-full border rounded-md p-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea></div>
           <div class="grid grid-cols-2 gap-3">
             <div><label class="text-xs font-medium text-gray-500 mb-1 block">Font size</label><select :value="selectedItem.fontSize" @change="emitTextUpdate('fontSize', Number($event.target.value))" class="w-full border rounded-md p-1.5 text-sm bg-white"><option v-for="s in [10,12,14,16,18,20,24,28,32,36,48]" :key="s" :value="s">{{ s }}px</option></select></div>
@@ -119,6 +135,17 @@
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Color</label><div class="flex gap-1 flex-wrap"><button v-for="c in ['#333','#666','#999','#c00','#080','#06c','#60c','#c60']" :key="c" @click="emitTextUpdate('color', c)" class="w-6 h-6 rounded border border-gray-200" :class="selectedItem.color===c?'ring-2 ring-blue-500':''" :style="{backgroundColor:c}"></button></div></div>
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Position</label><div class="grid grid-cols-2 gap-2"><div><label class="text-xs text-gray-400 block">X</label><input :value="selectedItem.x" @change="emitTextUpdate('x', Math.max(0,Number($event.target.value)||0))" type="number" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">Y</label><input :value="selectedItem.y" @change="emitTextUpdate('y', Math.max(0,Number($event.target.value)||0))" type="number" class="w-full border rounded-md p-1.5 text-sm" /></div></div></div>
           <div class="pt-2 border-t"><button @click="deleteText(selectedItem.id)" class="w-full text-xs text-red-500 bg-red-50 hover:bg-red-100 rounded py-1.5 font-medium">Delete text</button></div>
+        </div>
+      </div>
+
+      <div v-if="sidebarTab === 'chat'" class="flex-1 overflow-y-auto">
+        <ChatPanel
+          :schema-text="schemaText"
+          :run-sql="runSql"
+          :embedded="true"
+          @apply-chart="(c) => $emit('apply-chart', c)"
+          @run-sql="(sql) => $emit('run-sql', sql)"
+        />
       </div>
     </div>
   </div>
@@ -127,6 +154,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { Bar, Line, Pie, Doughnut, PolarArea, Radar } from 'vue-chartjs'
+import ChatPanel from './ChatPanel.vue'
 
 const props = defineProps({
   charts: { type: Array, default: () => [] },
@@ -134,9 +162,11 @@ const props = defineProps({
   columns: { type: Array, default: () => [] },
   numericColumns: { type: Array, default: () => [] },
   viewOnly: { type: Boolean, default: false },
+  schemaText: { type: String, default: '' },
+  runSql: { type: Function, default: null },
 })
 
-const emit = defineEmits(['update', 'add-chart', 'remove-chart', 'update-text', 'add-text', 'delete-text', 'toggle-view', 'auto-layout'])
+const emit = defineEmits(['update', 'add-chart', 'remove-chart', 'update-text', 'add-text', 'delete-text', 'toggle-view', 'auto-layout', 'apply-chart', 'run-sql'])
 
 const chartTypes = ['bar', 'line', 'pie', 'doughnut', 'polarArea', 'radar']
 const CANVAS_H = 1500
@@ -145,6 +175,7 @@ const zoom = ref(1)
 const canvasWidth = ref(800) // will be set on mount
 const chartRefs = {}
 const editingTextId = ref(null)
+const sidebarTab = ref('properties')
 const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
 
 const selectedItem = computed(() => {
@@ -218,7 +249,7 @@ async function captureAllImages() {
   const images = []
   for (const chart of props.charts) {
     const ref = chartRefs[chart.id]; if (!ref?.chart) continue
-    try { images.push({ id: chart.id, dataUrl: ref.chart.toBase64Image('image/png', 0.8), title: chart.title, chartType: chart.chartType, agg: chart.agg, yCol: chart.yCol, xCol: chart.xCol, queryResult: chart.queryResult }) } catch {}
+    try { images.push({ id: chart.id, dataUrl: ref.chart.toBase64Image('image/png', 0.8), title: chart.title, chartType: chart.chartType, agg: chart.agg, yCol: chart.yCol, xCol: chart.xCol, queryResult: chart.queryResult, _fromPivot: chart._fromPivot, _pivotRef: chart._pivotRef, _pivotHeaders: chart._pivotHeaders }) } catch {}
   }
   return images
 }

@@ -130,80 +130,11 @@
       </div>
       <p v-if="queryError" class="mt-2 text-xs text-red-500">{{ queryError }}</p>
     </div>
-
-    <!-- Pivot table -->
-    <div v-if="selectedTable" class="bg-white border border-gray-200 rounded-xl p-4">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Pivot table</h3>
-        <button @click="generatePivot" :disabled="pivotLoading || !pivotRowCol || !pivotValCol"
-          class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-40">
-          {{ pivotLoading ? 'Building...' : 'Generate' }}
-        </button>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
-        <div>
-          <label class="text-xs font-medium text-gray-500 mb-1 block">Rows</label>
-          <select v-model="pivotRowCol" class="w-full border border-gray-200 rounded p-1.5 text-sm bg-white">
-            <option value="">-- select --</option>
-            <option v-for="c in tableColumns" :key="c.name" :value="c.name">{{ c.name }}</option>
-          </select>
-        </div>
-        <div>
-          <label class="text-xs font-medium text-gray-500 mb-1 block">Columns</label>
-          <select v-model="pivotColCol" class="w-full border border-gray-200 rounded p-1.5 text-sm bg-white">
-            <option value="">-- select --</option>
-            <option v-for="c in tableColumns" :key="c.name" :value="c.name">{{ c.name }}</option>
-          </select>
-        </div>
-        <div>
-          <label class="text-xs font-medium text-gray-500 mb-1 block">Values</label>
-          <select v-model="pivotValCol" class="w-full border border-gray-200 rounded p-1.5 text-sm bg-white">
-            <option value="">-- select --</option>
-            <option v-for="c in numericCols" :key="c.name" :value="c.name">{{ c.name }}</option>
-          </select>
-        </div>
-        <div>
-          <label class="text-xs font-medium text-gray-500 mb-1 block">Aggregation</label>
-          <select v-model="pivotAgg" class="w-full border border-gray-200 rounded p-1.5 text-sm bg-white">
-            <option value="SUM">Sum</option>
-            <option value="AVG">Average</option>
-            <option value="COUNT">Count</option>
-            <option value="MIN">Min</option>
-            <option value="MAX">Max</option>
-          </select>
-        </div>
-      </div>
-      <div v-if="pivotResult.length" class="flex items-center justify-end gap-2 mb-2">
-        <button @click="$emit('add-pivot-chart', makePivotChartConfig())"
-          class="text-xs bg-purple-600 text-white px-2.5 py-1 rounded hover:bg-purple-700 transition-colors">
-          Add chart from pivot
-        </button>
-      </div>
-      <div v-if="pivotResult.length" class="overflow-x-auto max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
-        <table class="w-full text-xs border-collapse">
-          <thead class="sticky top-0 z-10">
-            <tr>
-              <th class="px-2 py-1.5 text-left font-semibold text-gray-500 uppercase border-b bg-gray-100 whitespace-nowrap">{{ pivotRowCol || 'Row' }}</th>
-              <th v-for="h in pivotHeaders" :key="h" class="px-2 py-1.5 text-right font-semibold text-gray-500 uppercase border-b bg-gray-100 whitespace-nowrap">{{ h }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, i) in pivotResult" :key="i" class="border-b border-gray-50 even:bg-gray-50/50 hover:bg-blue-50/30">
-              <td class="px-2 py-1 font-medium text-gray-700 whitespace-nowrap">{{ row._row }}</td>
-              <td v-for="h in pivotHeaders" :key="h" class="px-2 py-1 text-right text-gray-600 whitespace-nowrap">{{ row[h] != null ? formatCell(row[h]) : '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p v-if="pivotError" class="mt-2 text-xs text-red-500">{{ pivotError }}</p>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-
-const emit = defineEmits(['add-pivot-chart'])
 
 const props = defineProps({
   tables: { type: Array, default: () => [] },
@@ -227,15 +158,6 @@ const pageSize = 50
 const tableRows = ref([])
 const totalRows = ref(0)
 
-// Pivot table state
-const pivotRowCol = ref('')
-const pivotColCol = ref('')
-const pivotValCol = ref('')
-const pivotAgg = ref('SUM')
-const pivotResult = ref([])
-const pivotHeaders = ref([])
-const pivotLoading = ref(false)
-const pivotError = ref('')
 
 const numericCols = computed(() => tableColumns.value.filter(c =>
   ['INT', 'DOUBLE', 'FLOAT', 'DECIMAL', 'BIGINT', 'SMALLINT', 'TINYINT'].some(t => c.type.toUpperCase().includes(t))
@@ -389,59 +311,6 @@ async function runQuery() {
     queryError.value = 'Query error — check your SQL syntax and column names'
   }
   queryLoading.value = false
-}
-
-async function generatePivot() {
-  if (!pivotRowCol.value || !pivotValCol.value || !selectedTable.value) return
-  pivotLoading.value = true
-  pivotError.value = ''
-  pivotResult.value = []
-  pivotHeaders.value = []
-  try {
-    const rc = '"' + pivotRowCol.value + '"'
-    const cc = pivotColCol.value ? '"' + pivotColCol.value + '"' : "'total'"
-    const vc = '"' + pivotValCol.value + '"'
-    const agg = pivotAgg.value
-
-    const sql = 'SELECT ' + rc + ' AS _row, ' + cc + ' AS _col, ' + agg + '(' + vc + ') AS _val' +
-      ' FROM "' + selectedTable.value + '"' +
-      (pivotColCol.value ? ' GROUP BY ' + rc + ', ' + cc : ' GROUP BY ' + rc) +
-      ' ORDER BY _row'
-    const data = await props.runSql(sql)
-    if (!data.length) { pivotError.value = 'No data returned'; pivotLoading.value = false; return }
-
-    // Transform into pivot format
-    if (pivotColCol.value) {
-      const colSet = new Set(data.map(r => String(r._col)))
-      pivotHeaders.value = Array.from(colSet)
-      const rowMap = {}
-      data.forEach(r => {
-        const rowKey = String(r._row)
-        if (!rowMap[rowKey]) { rowMap[rowKey] = { _row: rowKey } }
-        rowMap[rowKey][String(r._col)] = r._val
-      })
-      pivotResult.value = Object.values(rowMap)
-    } else {
-      // Single column pivot (just aggregation)
-      pivotHeaders.value = [agg + ' of ' + pivotValCol.value]
-      pivotResult.value = data.map(r => ({ _row: String(r._row), [pivotHeaders.value[0]]: r._val }))
-    }
-  } catch (err) {
-    pivotError.value = 'Could not build pivot table'
-  }
-  pivotLoading.value = false
-}
-
-function makePivotChartConfig() {
-  const label = (pivotRowCol.value || '') + ' by ' + pivotAgg.value + ' of ' + (pivotValCol.value || '')
-  return {
-    label: label.slice(0, 40),
-    xCol: pivotRowCol.value,
-    yCol: pivotValCol.value,
-    agg: pivotAgg.value,
-    chartType: pivotColCol.value ? 'bar' : 'bar',
-    table: selectedTable.value,
-  }
 }
 
 onMounted(() => {
