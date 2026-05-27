@@ -4,7 +4,7 @@ import { pipeline, env } from '@huggingface/transformers'
 const MODEL_ID = 'Xenova/Qwen1.5-0.5B-Chat'
 const DTYPE = 'q4'
 const baseUrl = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
-const MODELS_PATH = baseUrl + 'models/'
+const MODELS_PATH = import.meta.env.DEV ? '/models/' : baseUrl + 'models/'
 const WASM_PATH = baseUrl + 'wasm/'
 
 env.localModelPath = MODELS_PATH
@@ -18,9 +18,16 @@ export const modelStatus = ref('idle')
 export const modelProgress = ref(0)
 export const modelError = ref('')
 export const modelConsent = ref(false)
+export const modelStage = ref('consent') // consent | checking | downloading | optimizing | ready | error
 
 export function giveConsent() {
   modelConsent.value = true
+}
+
+function resetStage() {
+  modelStage.value = 'consent'
+  modelProgress.value = 0
+  modelError.value = ''
 }
 
 function parseChartSuggestion(text) {
@@ -111,30 +118,55 @@ async function localModelsExist() {
   }
 }
 
+let stallTimer = null
+
+function clearStallTimer() {
+  if (stallTimer) {
+    clearTimeout(stallTimer)
+    stallTimer = null
+  }
+}
+
 async function ensureLoaded() {
   if (pipelineRef) return pipelineRef
   modelError.value = ''
   modelStatus.value = 'loading'
+  modelStage.value = 'checking'
+  modelProgress.value = 0
 
   try {
     const localOk = await localModelsExist()
     env.allowRemoteModels = localOk ? false : true
+    modelStage.value = 'checking'
 
     pipelineRef = await pipeline('text-generation', MODEL_ID, {
       dtype: DTYPE,
       progress_callback: (p) => {
         if (p.status === 'progress' && p.total) {
           modelProgress.value = Math.round((p.loaded / p.total) * 100)
+          if (modelStage.value !== 'optimizing') {
+            modelStage.value = 'downloading'
+          }
+          clearStallTimer()
+          stallTimer = setTimeout(() => {
+            if (modelStage.value === 'downloading' && modelStatus.value === 'loading') {
+              modelStage.value = 'optimizing'
+            }
+          }, 2000)
         }
       },
     })
+    clearStallTimer()
+    modelStage.value = 'ready'
     modelStatus.value = 'ready'
     return pipelineRef
   } catch (err) {
     console.error('[model]', err.message)
     modelError.value = err.message || String(err)
+    modelStage.value = 'error'
     modelStatus.value = 'error'
     pipelineRef = null
+    clearStallTimer()
     throw err
   }
 }
@@ -164,10 +196,9 @@ async function chat(schemaText, question, dataSamples) {
 function resetModel() {
   pipelineRef = null
   modelStatus.value = 'idle'
-  modelProgress.value = 0
-  modelError.value = ''
+  resetStage()
 }
 
 export function useModel() {
-  return { modelStatus, modelProgress, modelError, modelConsent, giveConsent, suggestCharts, chat, localModelsExist, ensureLoaded, resetModel, MODEL_ID }
+  return { modelStatus, modelProgress, modelError, modelConsent, modelStage, giveConsent, suggestCharts, chat, localModelsExist, ensureLoaded, resetModel, MODEL_ID }
 }
