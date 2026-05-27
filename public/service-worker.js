@@ -13,32 +13,6 @@ if (typeof window === 'undefined') {
       return
     }
 
-    // For model files from HuggingFace, try direct then proxy fallback
-    let hfResponse = null
-    const url = new URL(request.url)
-    if (url.hostname.includes('huggingface') || url.hostname.includes('hf.co')) {
-      const hfRequest = new Request(request.url, {
-        method: request.method,
-        headers: request.headers,
-        mode: 'cors',
-        credentials: 'omit',
-        cache: request.cache,
-        redirect: 'follow',
-      })
-      try {
-        hfResponse = await fetch(hfRequest)
-        if (!hfResponse.ok) hfResponse = null
-      } catch {
-        hfResponse = null
-      }
-      if (!hfResponse) {
-        const proxyUrl = `https://cors-anywhere.herokuapp.com/?${encodeURIComponent(request.url)}`
-        try {
-          hfResponse = await fetch(proxyUrl)
-        } catch {}
-      }
-    }
-
     // no-cors requests need credentials: omit to avoid COEP blocking them
     if (request.mode === 'no-cors') {
       request = new Request(request.url, {
@@ -57,7 +31,7 @@ if (typeof window === 'undefined') {
       })
     }
 
-    const r = hfResponse || await fetch(request).catch(() => null)
+    const r = await fetch(request).catch(() => null)
     if (!r || r.status === 0) return r
 
     const headers = new Headers(r.headers)

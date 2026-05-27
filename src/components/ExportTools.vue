@@ -36,10 +36,10 @@
     </div>
 
     <!-- Chart image downloads -->
-    <div v-if="chartImages.length" class="border-t border-gray-200 pt-6">
+    <div v-if="imagesWithData.length" class="border-t border-gray-200 pt-6">
       <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Chart images</h3>
       <div class="flex flex-wrap gap-2">
-        <button v-for="img in chartImages" :key="img.id" @click="downloadImage(img)"
+        <button v-for="img in imagesWithData" :key="img.id" @click="downloadImage(img)"
           class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded px-3 py-1.5 transition-colors">
           Download {{ img.title || 'chart' }}.png
         </button>
@@ -48,6 +48,9 @@
           Download all as ZIP
         </button>
       </div>
+      <p v-if="rangeBasedCharts.length" class="text-xs text-gray-400 mt-2">
+        {{ rangeBasedCharts.length }} chart{{ rangeBasedCharts.length > 1 ? 's' : '' }} from cell range{{ rangeBasedCharts.length > 1 ? 's' : '' }} (exported to Excel as native chart{{ rangeBasedCharts.length > 1 ? 's' : '' }})
+      </p>
     </div>
 
     <div class="border-t border-gray-200 pt-6">
@@ -103,6 +106,7 @@ const props = defineProps({
   chartDataQuery: { type: Function, default: async () => [] },
   chartImages: { type: Array, default: () => [] },
   dashboardImage: { type: String, default: '' },
+  canvasTables: { type: Array, default: () => [] },
   fetchFullTable: { type: Function, default: async () => [] },
   captureDashboard: { type: Function, default: async () => null },
 })
@@ -112,8 +116,11 @@ const message = ref('')
 const messageType = ref('success')
 const reportDescription = ref('')
 
-const canExport = computed(() => props.rawRows.length > 0 || (props.reportConfig.charts || []).some(c => c.queryResult?.length))
+const canExport = computed(() => props.rawRows.length > 0 || (props.reportConfig.charts || []).some(c => c.queryResult?.length || c.cellRange?.data) || props.canvasTables.some(t => t.rows?.length))
 const savedReports = ref(JSON.parse(localStorage.getItem('quickbi_reports') || '[]'))
+
+const imagesWithData = computed(() => props.chartImages.filter(img => !!img.dataUrl))
+const rangeBasedCharts = computed(() => props.chartImages.filter(img => !img.dataUrl && img.cellRange?.data))
 
 const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
 const HEADER_FONT = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
@@ -193,6 +200,13 @@ function styleDataCells(ws, rowCount, colCount) {
   }
 }
 
+function toArgb(hex) {
+  if (!hex || typeof hex !== 'string') return 'FF000000'
+  let h = hex.replace('#', '')
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]
+  return 'FF' + h.toUpperCase()
+}
+
 function cleanValue(v) {
   if (v == null) return null
   if (typeof v === 'object' && v instanceof Date) return v
@@ -255,6 +269,23 @@ const CHART_COLORS = { bar: 'FF3B82F6', line: 'FF10B981', pie: 'FF8B5CF6', dough
 
 function getChartTypeColor(type) {
   return CHART_COLORS[type] || 'FF1F4E79'
+}
+
+/**
+ * Write chart data to worksheet cells and optionally add a native chart.
+ * Returns { lastRow, lastCol, sheetIndex } for reference.
+ */
+function writeChartDataToSheet(wb, ws, chartData, headers) {
+  if (!chartData || !chartData.length) return null
+  const keys = headers || Object.keys(chartData[0])
+  ws.addRow(keys)
+  for (const row of chartData) {
+    ws.addRow(keys.map(k => cleanValue(row[k])))
+  }
+  keys.forEach((k, i) => {
+    ws.getColumn(i + 1).width = Math.min(Math.max(k.length + 3, 10), 30)
+  })
+  return { lastRow: chartData.length + 1, lastCol: keys.length, headers: keys }
 }
 
 async function exportExcel() {
@@ -330,6 +361,60 @@ async function exportExcel() {
   const refCols = allDataSheetName ? allDataHeaderCols : (props.tables[0]?.columns || []).map(c => c.name)
   const refColLetters = {}
   refCols.forEach((c, i) => { refColLetters[c] = colLetter(i) })
+
+  // ========================
+  // NATIVE CHART TRACKER (for range-based charts)
+  // ========================
+  const nativeChartConfigs = []
+  let sheetCounter = 0
+
+  // ========================
+  // CELL RANGE CHARTS -> Native Excel Charts
+  // ========================
+  for (const chart of charts) {
+    if (chart.cellRange && chart.cellRange.data && chart.cellRange.data.length >= 2) {
+      const rangeData = chart.cellRange.data
+      const wsName = sanitizeSheetName(chart.title || 'Chart from range')
+      const ws = wb.addWorksheet(wsName)
+      sheetCounter++
+
+      // Write data to worksheet cells
+      for (let ri = 0; ri < rangeData.length; ri++) {
+        const row = rangeData[ri]
+        for (let ci = 0; ci < row.length; ci++) {
+          const cell = ws.getCell(ri + 1, ci + 1)
+          const val = cleanValue(row[ci])
+          cell.value = val
+          if (ri === 0) {
+            cell.font = HEADER_FONT
+            cell.fill = HEADER_FILL
+            cell.alignment = { vertical: 'middle' }
+          } else if (typeof val === 'number') {
+            cell.numFmt = '#,##0'
+          }
+        }
+      }
+
+      // Set column widths
+      if (rangeData[0]) {
+        rangeData[0].forEach((h, i) => {
+          const maxLen = rangeData.reduce((m, r) => Math.max(m, String(r[i] || '').length), String(h).length)
+          ws.getColumn(i + 1).width = Math.min(Math.max(maxLen + 3, 10), 40)
+        })
+      }
+
+      ws.autoFilter = { from: { row: 1, col: 1 }, to: { row: rangeData.length, col: rangeData[0].length } }
+
+      nativeChartConfigs.push({
+        ws: { name: wsName, index: wb._worksheets ? wb._worksheets.length : sheetCounter },
+        data: rangeData,
+        title: chart.title || 'Chart',
+        chartType: chart.chartType || 'bar',
+        dataRange: `A1:${colLetter(rangeData[0].length - 1)}${rangeData.length}`,
+      })
+      hasData = true
+    }
+  }
 
   // ========================
   // CHART SHEETS (with formulas)
@@ -475,12 +560,164 @@ async function exportExcel() {
         ext: { width: imgW, height: imgH },
       })
     }
-    ws.autoFilter = { from: { row: dataHeaderRow, col: 1 }, to: { row: lastRow, col: lastCol } }
-    hasData = true
-  }
+      ws.autoFilter = { from: { row: dataHeaderRow, col: 1 }, to: { row: lastRow, col: lastCol } }
+      hasData = true
+    }
 
-  // ========================
-  // PIVOT DATA SHEETS
+    // ========================
+    // CANVAS LAYOUT SHEET (position-based)
+    // ========================
+    const hasCanvasItems = props.canvasTables.length || charts.length || (cfg.texts || []).length
+    if (hasCanvasItems) {
+      const ws = wb.addWorksheet('Canvas Layout')
+      ws.getColumn(1).width = 4 // left margin
+
+      // Collect all items with canvas positions
+      const layoutItems = [
+        ...props.canvasTables.map(t => ({ ...t, _type: 'table' })),
+        ...charts.map(c => ({ ...c, _type: 'chart' })),
+        ...(cfg.texts || []).map(tx => ({ ...tx, _type: 'text' })),
+      ]
+      layoutItems.sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0))
+
+      for (const item of layoutItems) {
+        const r0 = Math.floor((item.y || 0) / 26) + 1
+        const c0 = Math.floor((item.x || 0) / 80) + 1
+
+        if (item._type === 'table') {
+          if (!item.rows || !item.rows.length || !item.displayColumns?.length) continue
+          const keys = item.displayColumns.map(d => d.name)
+
+          // Header row
+          for (let ci = 0; ci < keys.length; ci++) {
+            const cell = ws.getCell(r0, c0 + ci)
+            cell.value = keys[ci]
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
+            cell.alignment = { vertical: 'middle', wrapText: true }
+            cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+          }
+
+          // Data rows
+          for (let ri = 0; ri < item.rows.length; ri++) {
+            for (let ci = 0; ci < keys.length; ci++) {
+              const cell = ws.getCell(r0 + 1 + ri, c0 + ci)
+              cell.value = cleanValue(item.rows[ri][ci])
+              if (ri % 2 === 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } }
+              cell.border = { bottom: { style: 'hair' }, left: { style: 'hair' }, right: { style: 'hair' } }
+              const val = cell.value
+              if (typeof val === 'number') cell.numFmt = '#,##0'
+
+              // Apply per-cell formatting from canvas
+              const fmt = item.cellFormats?.[ri + '-' + ci]
+              if (fmt) {
+                if (fmt.bold) cell.font = { ...cell.font, bold: true }
+                if (fmt.color) cell.font = { ...cell.font, color: { argb: toArgb(fmt.color) } }
+                if (fmt.bgColor) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toArgb(fmt.bgColor) } }
+                if (fmt.align) cell.alignment = { ...cell.alignment, horizontal: fmt.align }
+                if (fmt.format === 'number') cell.numFmt = '#,##0'
+                else if (fmt.format === 'currency') cell.numFmt = '$#,##0.00'
+                else if (fmt.format === 'percent') cell.numFmt = '0.00%'
+              }
+            }
+          }
+
+          // Column widths
+          for (let ci = 0; ci < keys.length; ci++) {
+            const maxLen = item.rows.reduce((m, r) => Math.max(m, String(r[ci] || '').length), keys[ci].length)
+            const colIdx = c0 + ci
+            if (!ws.getColumn(colIdx).width || ws.getColumn(colIdx).width < maxLen + 3) {
+              ws.getColumn(colIdx).width = Math.min(Math.max(maxLen + 3, 10), 40)
+            }
+          }
+          hasData = true
+        } else if (item._type === 'chart') {
+          const imgData = props.chartImages.find(img => img.id === item.id)
+          if (imgData?.dataUrl) {
+            const b64 = imgData.dataUrl.split(',')[1]
+            if (b64) {
+              const imgObj = new Image()
+              imgObj.src = imgData.dataUrl
+              await new Promise(r => { imgObj.onload = r })
+              const ar = imgObj.naturalHeight / imgObj.naturalWidth
+              const imgW = 400
+              const imgH = Math.round(imgW * ar)
+              const imageId = wb.addImage({ base64: b64, extension: 'png' })
+              ws.addImage(imageId, {
+                tl: { col: c0 - 1, row: r0 - 1 },
+                ext: { width: imgW, height: imgH },
+              })
+              hasData = true
+            }
+          } else if (item.cellRange?.data) {
+            // Write range data to cells instead
+            const rd = item.cellRange.data
+            for (let ri = 0; ri < Math.min(rd.length, 20); ri++) {
+              for (let ci = 0; ci < rd[ri].length; ci++) {
+                const cell = ws.getCell(r0 + ri, c0 + ci)
+                cell.value = cleanValue(rd[ri][ci])
+                if (ri === 0) {
+                  cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
+                }
+              }
+            }
+            // Add a note
+            const noteCell = ws.getCell(r0 + Math.min(rd.length, 20) + 1, c0)
+            noteCell.value = item.title || 'Chart'
+            noteCell.font = { bold: true, size: 11, color: { argb: 'FF1F4E79' } }
+            hasData = true
+          }
+        } else if (item._type === 'text') {
+          const val = (item.text || '').trim()
+          if (!val) continue
+          const cell = ws.getCell(r0, c0)
+          cell.value = val
+          cell.font = { size: item.fontSize ? Math.min(item.fontSize + 2, 20) : 11, bold: !!item.bold, color: { argb: toArgb(item.color || '#333') } }
+          hasData = true
+        }
+      }
+    }
+
+    // ========================
+    // GRID DATA SHEETS (from spreadsheet grid model)
+    // ========================
+    const gridData = cfg.gridData || []
+    if (gridData.length) {
+      for (const gd of gridData) {
+        const rows = gd.rows || []
+        if (!rows.length) continue
+        const wsName = sanitizeSheetName(gd.name || 'Sheet')
+        const ws = wb.addWorksheet(wsName)
+
+        const headers = rows[0] || []
+        for (let ri = 0; ri < rows.length; ri++) {
+          const row = rows[ri]
+          for (let ci = 0; ci < row.length; ci++) {
+            const cell = ws.getCell(ri + 1, ci + 1)
+            const val = cleanValue(row[ci])
+            cell.value = val
+            if (ri === 0) {
+              cell.font = HEADER_FONT
+              cell.fill = HEADER_FILL
+            } else if (typeof val === 'number') {
+              cell.numFmt = '#,##0'
+            }
+          }
+        }
+
+        headers.forEach((h, i) => {
+          const maxLen = rows.reduce((m, r) => Math.max(m, String(r[i] || '').length), String(h).length)
+          ws.getColumn(i + 1).width = Math.min(Math.max(maxLen + 3, 10), 40)
+        })
+
+        addAutoFilter(ws, headers.length, rows.length)
+        hasData = true
+      }
+    }
+
+    // ========================
+    // PIVOT DATA SHEETS
   // ========================
   const pivotDataList = cfg.pivots || []
   for (let pi = 0; pi < pivotDataList.length; pi++) {
@@ -537,13 +774,27 @@ async function exportExcel() {
 
   if (!hasData) { showMessage('No data to export.', 'error'); return }
 
-  const buf = await wb.xlsx.writeBuffer()
-  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  // ========================
+  // INJECT NATIVE CHARTS (for range-based charts)
+  // ========================
+  let finalBuffer = await wb.xlsx.writeBuffer()
+
+  if (nativeChartConfigs.length > 0) {
+    try {
+      const { injectChartXml } = await import('../lib/excelChartBuilder')
+      finalBuffer = await injectChartXml(wb, nativeChartConfigs)
+    } catch (e) {
+      console.warn('Native chart injection failed, falling back to data-only export:', e)
+      finalBuffer = await wb.xlsx.writeBuffer()
+    }
+  }
+
+  const blob = new Blob([finalBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url; a.download = name + '.xlsx'; a.click()
   URL.revokeObjectURL(url)
-  showMessage('Excel workbook with charts downloaded!')
+  showMessage('Excel workbook with native charts downloaded!')
 }
 
 // --- PDF export ---

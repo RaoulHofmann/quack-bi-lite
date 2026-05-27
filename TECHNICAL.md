@@ -9,7 +9,7 @@ Quack BI Lite is a fully client-side browser app. No backend server. All data pr
 ```
 CSV upload → DuckDB-WASM (in-browser SQL) → Chart.js (rendering) → Excel/PDF export
                               ↕
-                    Explore step (data grid, SQL, pivot, chat)
+                    Explore step (data grid, SQL, pivot)
                               ↕
                     Build step (canvas, charts, joins)
 ```
@@ -22,67 +22,7 @@ CSV upload → DuckDB-WASM (in-browser SQL) → Chart.js (rendering) → Excel/P
 | **Charts** | Chart.js + vue-chartjs | Renders bar, line, pie, doughnut, polar, radar |
 | **Excel export** | ExcelJS | Creates multi-sheet workbooks with charts + formulas |
 | **PDF export** | jsPDF + html2canvas | Generates printable report documents |
-| **Local AI** | 🤗 Transformers.js | Runs a 124M-parameter LLM in-browser for chart suggestions |
 | **Offline** | Service Worker | Caches assets, provides COOP/COEP headers for DuckDB |
-
----
-
-## Local AI Model
-
-The app includes an optional on-device AI that suggests charts and answers questions about your data.
-
-### How it works
-
-1. When you click **AI suggest** in the Build step or send a message in the Chat panel, the app loads `Xenova/LaMini-GPT-124M` — a 124M-parameter text-generation model converted to ONNX format.
-2. The model runs entirely in-browser via `@huggingface/transformers` (Transformers.js). No data leaves your machine.
-3. The model receives the database schema (table names, column names, types) and your question, then generates structured chart suggestions or SQL queries.
-4. Chart suggestions are parsed from the model output and displayed as clickable cards that create pre-configured charts on the canvas.
-
-### Prompt format
-
-The model is prompted like this:
-
-```
-You are a data assistant. Given this database schema, answer questions and suggest charts.
-
-Schema:
-Table: sales
-Columns: Region (VARCHAR), Product (VARCHAR), Sales (DOUBLE), ...
-
-When suggesting a chart, use this format:
-Chart: [title]
-Type: [bar|line|pie]
-X: [column name]
-Y: [column name]
-Aggregation: [SUM|AVG|COUNT]
-
-Question: Suggest 2-3 charts to visualize this data.
-
-Answer:
-```
-
-The structured output is parsed to extract chart configurations and SQL queries.
-
-### Model sources
-
-By default, the model is downloaded from Hugging Face on first use (~50MB). You can self-host it:
-
-```bash
-npm run build:models
-# or as part of a full build:
-npm run generate
-# or as part of deployment:
-npm run deploy
-```
-
-This places the model files in `public/models/Xenova/LaMini-GPT-124M/`. The app detects local files and loads from there instead of Hugging Face. Useful for offline use or if Hugging Face is inaccessible.
-
-### Why LaMini-GPT-124M?
-
-- **124M parameters** — small enough to run on CPU in any modern browser
-- **ONNX format** — converted for efficient inference via Transformers.js
-- **~50MB download** — cached by the service worker after first load
-- **Structured output** — good at following format instructions for chart/SQL generation
 
 ---
 
@@ -105,13 +45,14 @@ Without these headers, DuckDB falls back to single-threaded mode (slower queries
 
 - **Install**: Caches the app shell (`/`)
 - **Fetch**: Network-first strategy — tries the network, falls back to cache
-- **WASM/Worker files**: Cached after first download (large files like DuckDB's `.wasm` and Hugging Face model files)
-- **Hugging Face**: Model requests pass through without COEP modification
+- **WASM/Worker files**: Cached after first download (large files like DuckDB's `.wasm`)
 - **Offline**: Returns cached content; shows a 503 if nothing cached
 
 ### Registration
 
 Registered in `src/main.js` with relative path `service-worker.js` and empty scope (defaults to app's directory — `/quack-bi-lite/` on GitHub Pages).
+
+---
 
 ---
 
@@ -151,15 +92,10 @@ npm run deploy    # Build + gh-pages to gh-pages branch
 
 The `base` in `vite.config.js` must match the repository name.
 
-If you self-host the model, run `npm run build:models` before building so model files are included in `dist/`. The `generate` script runs both steps, suitable for CI pipelines.
-
 ---
 
 ## Data Privacy
 
 - CSV data **never leaves the browser**
 - All DuckDB querying is client-side
-- The AI model runs locally — your schema and questions are never sent to any server
-- Model files are cached by the service worker for offline use
 - No cookies, no tracking, no analytics
-- If you delete the model files, the app falls back to rule-based chart suggestions
