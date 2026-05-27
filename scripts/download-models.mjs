@@ -27,18 +27,12 @@ async function main() {
   const modelOutDir = join(OUT_DIR, MODEL_ID);
   const onnxPath = join(modelOutDir, "onnx", `model_${DTYPE}.onnx`);
 
-  if (existsSync(onnxPath) && statSync(onnxPath).size > 0) {
+  if (existsSync(onnxPath) && statSync(onnxPath).size > 50 * 1024 * 1024) {
     console.log(`Model files already cached at public/models/${MODEL_ID}/ — skipping download`);
     return
   }
 
   console.log(`Downloading ${MODEL_ID} (${DTYPE})...`);
-
-  if (existsSync(OUT_DIR)) {
-    rmSync(OUT_DIR, { recursive: true, force: true });
-  }
-  mkdirSync(OUT_DIR, { recursive: true });
-
   console.log("Creating pipeline (triggers model download)...");
 
   await pipeline("text-generation", MODEL_ID, { dtype: DTYPE });
@@ -46,7 +40,6 @@ async function main() {
   console.log("Model ready. Copying to public/models/...");
 
   const modelCacheDir = join(CACHE_DIR, MODEL_ID);
-
   copyDir(modelCacheDir, modelOutDir);
 
   console.log(`\n✓ Model files in public/models/${MODEL_ID}/`);
@@ -54,7 +47,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.log(err)
   console.error("\n✗ Download failed:", err.message);
   process.exit(1);
-});
+})

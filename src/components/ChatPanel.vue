@@ -160,7 +160,7 @@ async function fetchRelevantData(question) {
   if (!mentioned.length) return null
   try {
     const rows = await props.runSql('SELECT * FROM "' + mentioned[0] + '" LIMIT 5')
-    return { table: mentioned[0], rows }
+    return rows
   } catch { return null }
 }
 

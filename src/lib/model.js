@@ -57,26 +57,17 @@ function extractSql(text) {
   return m ? m[1].trim() : null
 }
 
-function buildChatPrompt(schemaText, dataSamples, question) {
-  const dataSection = dataSamples && dataSamples.length
-    ? '\n\nActual data samples:\n' + JSON.stringify(dataSamples, null, 2)
+function buildChatPrompt(schemaText, rows, question) {
+  const samples = rows && rows.length
+    ? '\nSample rows:\n' + JSON.stringify(rows.slice(0, 3), null, 2)
     : ''
 
   return `<|im_start|>system
-You are a data analysis assistant. You have access to a database with the schema below.
-Answer the user's question using the schema and any provided data samples.
-When suggesting a chart, use this exact format:
-Chart: [title]
-Type: [bar|line|pie|doughnut|polarArea|radar]
-X: [column name]
-Y: [column name]
-Aggregation: [SUM|AVG|COUNT|MIN|MAX]
-
-When writing SQL, put it in a code block with \`\`\`sql.
-Keep responses concise and focused on the data.
+You are a data analyst. Answer in 1-2 sentences using the schema below.
+Never write SQL. Never suggest charts.
 
 Schema:
-${schemaText}${dataSection}
+${schemaText}${samples}
 <|im_end|>
 <|im_start|>user
 ${question}
@@ -86,21 +77,19 @@ ${question}
 
 function buildSuggestPrompt(schemaText) {
   return `<|im_start|>system
-You are a data analysis assistant. Given the database schema below, suggest 2-3 useful charts for visualizing this data.
-For each chart, use this exact format:
-Chart: [title]
-Type: [bar|line|pie]
-X: [column name]
-Y: [column name]
-Aggregation: [SUM|AVG|COUNT]
-
-Only output the chart definitions, no extra text.
+Given this schema, suggest 2 charts.
+Output only:
+Chart: title
+Type: bar|line|pie
+X: column
+Y: column
+Aggregation: SUM|AVG|COUNT
 
 Schema:
 ${schemaText}
 <|im_end|>
 <|im_start|>user
-Suggest 2-3 charts to visualize this data.
+Suggest 2 charts for this data.
 <|im_end|>
 <|im_start|>assistant`
 }
@@ -176,7 +165,7 @@ async function ensureLoaded() {
 async function suggestCharts(schemaText) {
   const pipe = await ensureLoaded()
   const prompt = buildSuggestPrompt(schemaText)
-  const r = await pipe(prompt, { max_new_tokens: 300, temperature: 0.2, do_sample: true, top_p: 0.9 })
+  const r = await pipe(prompt, { max_new_tokens: 200, do_sample: false })
   const generated = r[0]?.generated_text || ''
   const reply = generated.includes('<|im_start|>assistant')
     ? generated.split('<|im_start|>assistant').pop().trim()
@@ -184,10 +173,10 @@ async function suggestCharts(schemaText) {
   return parseChartSuggestion(reply)
 }
 
-async function chat(schemaText, question, dataSamples) {
+async function chat(schemaText, question, rows) {
   const pipe = await ensureLoaded()
-  const prompt = buildChatPrompt(schemaText, dataSamples, question)
-  const r = await pipe(prompt, { max_new_tokens: 400, temperature: 0.3, do_sample: true, top_p: 0.9 })
+  const prompt = buildChatPrompt(schemaText, rows, question)
+  const r = await pipe(prompt, { max_new_tokens: 200, do_sample: false })
   const generated = r[0]?.generated_text || ''
   const reply = generated.includes('<|im_start|>assistant')
     ? generated.split('<|im_start|>assistant').pop().trim()

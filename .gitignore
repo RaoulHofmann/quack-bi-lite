@@ -38,5 +38,5 @@ __screenshots__/
 # Vite
 *.timestamp-*-*.mjs
 
-# Downloaded local models (run scripts/download-model.sh to populate)
+# Downloaded local models (run scripts/download-models.mjs to populate)
 /public/models/
