@@ -111,8 +111,10 @@ function modelFileName() {
 
 async function localModelsExist() {
   try {
-    const r = await fetch(MODELS_PATH + MODEL_ID + '/' + modelFileName(), { method: 'HEAD', signal: AbortSignal.timeout(5000) })
-    return r.ok
+    const onnx = fetch(MODELS_PATH + MODEL_ID + '/' + modelFileName(), { method: 'HEAD', signal: AbortSignal.timeout(5000) })
+    const genCfg = fetch(MODELS_PATH + MODEL_ID + '/generation_config.json', { method: 'HEAD', signal: AbortSignal.timeout(5000) })
+    const [a, b] = await Promise.all([onnx, genCfg])
+    return a.ok && b.ok
   } catch {
     return false
   }
