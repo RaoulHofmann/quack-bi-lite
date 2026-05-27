@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-const MODEL_ID = 'Xenova/Qwen1.5-0.5B-Chat'
+const MODEL_ID = 'HuggingFaceTB/SmolLM2-135M-Instruct'
 const DTYPE = 'q4'
 const OUT_DIR = resolve(__dirname, '..', 'public/models')
 const HF_BASE = `https://huggingface.co/${MODEL_ID}/resolve/main`

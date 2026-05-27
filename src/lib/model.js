@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { pipeline, env } from '@huggingface/transformers'
 
-const MODEL_ID = 'Xenova/Qwen1.5-0.5B-Chat'
+const MODEL_ID = 'HuggingFaceTB/SmolLM2-135M-Instruct'
 const DTYPE = 'q4'
 const baseUrl = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
 const MODELS_PATH = import.meta.env.DEV ? '/models/' : baseUrl + 'models/'
