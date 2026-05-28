@@ -36,10 +36,10 @@
     </div>
 
     <!-- Chart image downloads -->
-    <div v-if="chartImages.length" class="border-t border-gray-200 pt-6">
+    <div v-if="chartImages.filter(i => i.dataUrl).length" class="border-t border-gray-200 pt-6">
       <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Chart images</h3>
       <div class="flex flex-wrap gap-2">
-        <button v-for="img in chartImages" :key="img.id" @click="downloadImage(img)"
+        <button v-for="img in chartImages.filter(i => i.dataUrl)" :key="img.id" @click="downloadImage(img)"
           class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded px-3 py-1.5 transition-colors">
           Download {{ img.title || 'chart' }}.png
         </button>
@@ -55,6 +55,45 @@
       <textarea v-model="reportDescription" rows="2"
         class="w-full max-w-lg border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder="Monthly sales breakdown by region and product category"></textarea>
+    </div>
+
+    <div class="border-t border-gray-200 pt-6">
+      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Excel report options</h3>
+      <p class="text-xs text-gray-400 mb-4 leading-relaxed">
+        Every chart and table from your canvas becomes a dedicated sheet in the workbook.
+        The cover sheet includes a dashboard screenshot and summary info. Chart sheets
+        include embedded chart images alongside data tables with live Excel formulas
+        connected to an "All Data" reference sheet.
+      </p>
+      <div class="space-y-2">
+        <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input type="checkbox" v-model="reportOpts.dashboard" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+          <span>Include dashboard screenshot</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input type="checkbox" v-model="reportOpts.charts" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+          <span>Include chart sheets</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input type="checkbox" v-model="reportOpts.tables" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+          <span>Include canvas table sheets</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input type="checkbox" v-model="reportOpts.rawData" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+          <span>Include raw data appendix (per-table)</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="border-t border-gray-200 pt-6">
+      <label class="block text-sm font-medium text-gray-600 mb-1">Excel theme</label>
+      <div class="flex gap-2">
+        <button v-for="(t, key) in themes" :key="key" @click="reportTheme = key"
+          class="px-3 py-1.5 text-xs rounded font-medium transition-colors"
+          :class="reportTheme === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+          {{ key.charAt(0).toUpperCase() + key.slice(1) }}
+        </button>
+      </div>
     </div>
 
     <div v-if="savedReports.length" class="border-t border-gray-200 pt-6">
@@ -111,13 +150,28 @@ const emit = defineEmits(['load-report'])
 const message = ref('')
 const messageType = ref('success')
 const reportDescription = ref('')
+const reportOpts = ref({ dashboard: true, charts: true, tables: true, rawData: false })
 
 const canExport = computed(() => props.rawRows.length > 0 || (props.reportConfig.charts || []).some(c => c.queryResult?.length))
 const savedReports = ref(JSON.parse(localStorage.getItem('quickbi_reports') || '[]'))
 
-const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
+const reportTheme = ref('professional')
+const themes = {
+  professional: { header: 'FF1F4E79', accent: 'FF3B82F6', alt: 'FFF5F7FA' },
+  colorful: { header: 'FF7C3AED', accent: 'FFF59E0B', alt: 'FFFFF7ED' },
+  minimal: { header: 'FF374151', accent: 'FF6B7280', alt: 'FFF9FAFB' },
+}
+
+function tFill() {
+  const t = themes[reportTheme.value] || themes.professional
+  return { type: 'pattern', pattern: 'solid', fgColor: { argb: t.header } }
+}
+function aFill() {
+  const t = themes[reportTheme.value] || themes.professional
+  return { type: 'pattern', pattern: 'solid', fgColor: { argb: t.alt } }
+}
+
 const HEADER_FONT = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-const ALT_ROW_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } }
 
 function toSafe(obj) {
   return JSON.parse(JSON.stringify(obj, (k, v) => typeof v === 'bigint' ? Number(v) : v))
@@ -169,29 +223,31 @@ function styleHeaderRow(ws, colCount) {
   for (let c = 1; c <= colCount; c++) {
     const cell = ws.getCell(1, c)
     cell.font = HEADER_FONT
-    cell.fill = HEADER_FILL
+    cell.fill = tFill()
     cell.alignment = { vertical: 'middle', wrapText: true }
     cell.border = {
       top: { style: 'thin' }, bottom: { style: 'thin' },
       left: { style: 'thin' }, right: { style: 'thin' },
     }
   }
-  ws.getRow(1).height = 22
-}
+    ws.getRow(1).height = 26
+  }
 
-function styleDataCells(ws, rowCount, colCount) {
-  for (let r = 2; r <= rowCount; r++) {
-    for (let c = 1; c <= colCount; c++) {
-      const cell = ws.getCell(r, c)
-      if (r % 2 === 0) cell.fill = ALT_ROW_FILL
-      cell.border = {
-        bottom: { style: 'hair' },
-        left: { style: 'hair' }, right: { style: 'hair' },
+  function styleDataCells(ws, rowCount, colCount) {
+    for (let r = 2; r <= rowCount; r++) {
+      ws.getRow(r).height = 20
+      for (let c = 1; c <= colCount; c++) {
+        const cell = ws.getCell(r, c)
+        cell.font = { size: 11 }
+        if (r % 2 === 0) cell.fill = aFill()
+        cell.border = {
+          bottom: { style: 'hair' },
+          left: { style: 'hair' }, right: { style: 'hair' },
+        }
+        if (cell.value instanceof Date) cell.numFmt = 'yyyy-mm-dd'
       }
-      if (cell.value instanceof Date) cell.numFmt = 'yyyy-mm-dd'
     }
   }
-}
 
 function cleanValue(v) {
   if (v == null) return null
@@ -251,13 +307,14 @@ function writeRows(ws, rows, columns) {
 
 // --- Excel export ---
 
-const CHART_COLORS = { bar: 'FF3B82F6', line: 'FF10B981', pie: 'FF8B5CF6', doughnut: 'FFEC4899', polarArea: 'FFF59E0B', radar: 'FF06B6D4' }
-
 function getChartTypeColor(type) {
-  return CHART_COLORS[type] || 'FF1F4E79'
+  const t = themes[reportTheme.value] || themes.professional
+  const colors = { bar: t.accent, line: 'FF10B981', pie: 'FF8B5CF6', doughnut: 'FFEC4899', polarArea: 'FFF59E0B', radar: 'FF06B6D4' }
+  return colors[type] || t.header
 }
 
 async function exportExcel() {
+  try {
   const name = (props.reportConfig.name || 'dashboard').replace(/[^a-zA-Z0-9_-]/g, '_')
   const wb = new ExcelJS.Workbook()
   wb.creator = 'Quack BI Lite'
@@ -266,140 +323,224 @@ async function exportExcel() {
   let hasData = false
   const cfg = props.reportConfig
   const genDate = new Date().toLocaleString()
-  const charts = cfg.charts || []
   const desc = reportDescription.value || ''
-
-  // ========================
-  // COVER SHEET (with dashboard image)
-  // ========================
-  const coverWs = wb.addWorksheet('Cover')
-  coverWs.getColumn(1).width = 4
-  coverWs.getColumn(2).width = 80
-  coverWs.getRow(1).height = 36
-
-  coverWs.getCell('B1').value = cfg.name || 'Quack BI Report'
-  coverWs.getCell('B1').font = { bold: true, size: 22, color: { argb: 'FF1F4E79' } }
-  coverWs.mergeCells('B1:B1')
-
-  if (desc) {
-    coverWs.getCell('B2').value = desc
-    coverWs.getCell('B2').font = { size: 11, color: { argb: 'FF64748B' }, italic: true }
-    coverWs.getRow(2).height = 20
-  }
-
-  const infoRow = desc ? 4 : 3
-  coverWs.getCell('B' + infoRow).value = 'Generated: ' + genDate + '  |  Tables: ' + (cfg.tables || []).length + '  |  Charts: ' + charts.length
-  coverWs.getCell('B' + infoRow).font = { size: 10, color: { argb: 'FF64748B' } }
-
-  // Add dashboard screenshot below header
-  let coverImgRow = infoRow + 2
-  const dashB64 = props.dashboardImage?.split(',')[1]
-  if (dashB64) {
-    const imgObj = new Image()
-    imgObj.src = props.dashboardImage
-    await new Promise(r => { imgObj.onload = r })
-    const ar = imgObj.naturalHeight / imgObj.naturalWidth
-    const imgW = 640
-    const imgH = Math.round(imgW * ar)
-    const imageId = wb.addImage({ base64: dashB64, extension: 'png' })
-    coverWs.addImage(imageId, {
-      tl: { col: 0, row: coverImgRow - 1 },
-      ext: { width: imgW, height: imgH },
-    })
-    coverWs.getRow(coverImgRow).height = imgH * 0.75 + 10
-    coverImgRow += Math.ceil(imgH / 15) + 1
-  }
-
-  // Brief metadata summary below image
-  coverWs.getCell('B' + coverImgRow).value = 'Charts: ' + charts.length + '  |  Data sources: ' + (cfg.tables || []).map(t => t.name).join(', ')
-  coverWs.getCell('B' + coverImgRow).font = { size: 10, color: { argb: 'FF64748B' } }
+  const opts = reportOpts.value
+  const theme = themes[reportTheme.value] || themes.professional
 
   // ========================
   // PRE-FETCH ALL DATA (for chart formulas)
   // ========================
-  let allDataSheetName = null
+  let allData = []
   let allDataHeaderCols = []
+  let refColLetters = {}
   try {
-    const allData = await props.chartDataQuery()
+    allData = await props.chartDataQuery()
     if (allData.length) {
       allDataHeaderCols = Object.keys(allData[0])
-      allDataSheetName = 'All Data'
+      allDataHeaderCols.forEach((c, i) => { refColLetters[c] = colLetter(i) })
     }
   } catch {}
-  const refSheet = allDataSheetName || (props.tables.length > 0 ? sanitizeSheetName(props.tables[0].name) : null)
-  const refCols = allDataSheetName ? allDataHeaderCols : (props.tables[0]?.columns || []).map(c => c.name)
-  const refColLetters = {}
-  refCols.forEach((c, i) => { refColLetters[c] = colLetter(i) })
+  const refSheet = 'All Data'
 
   // ========================
-  // CHART SHEETS (with formulas)
+  // 1. COVER SHEET
   // ========================
-  for (const img of props.chartImages) {
+  const coverWs = wb.addWorksheet('Cover')
+  coverWs.getColumn(1).width = 4
+  coverWs.getColumn(2).width = 80
+  coverWs.getColumn(3).width = 30
+
+  coverWs.mergeCells('B1:C1')
+  coverWs.getCell('B1').value = cfg.name || 'Quack BI Report'
+  coverWs.getCell('B1').font = { bold: true, size: 26, color: { argb: theme.header } }
+  coverWs.getRow(1).height = 40
+
+  if (desc) {
+    coverWs.getCell('B2').value = desc
+    coverWs.getCell('B2').font = { size: 12, color: { argb: 'FF64748B' }, italic: true }
+    coverWs.getRow(2).height = 22
+  }
+
+  const infoRow = desc ? 4 : 3
+  const chartCount = props.chartImages.filter(i => i.chartType !== 'table').length
+  const tableCount = props.chartImages.filter(i => i.chartType === 'table').length
+  coverWs.getCell('B' + infoRow).value = 'Generated: ' + genDate
+  coverWs.getCell('B' + infoRow).font = { size: 11, color: { argb: 'FF64748B' } }
+  coverWs.getCell('C' + infoRow).value = 'Data sources: ' + (cfg.tables || []).length + '  |  Charts: ' + chartCount + '  |  Tables: ' + tableCount
+  coverWs.getCell('C' + infoRow).font = { size: 11, color: { argb: 'FF64748B' } }
+
+  const divRow = infoRow + 1
+  coverWs.getCell('B' + divRow).value = ''
+  coverWs.getCell('B' + divRow).border = { bottom: { style: 'medium', color: { argb: theme.accent } } }
+  coverWs.mergeCells('B' + divRow + ':C' + divRow)
+
+  let coverImgRow = divRow + 2
+  const dashB64 = (props.dashboardImage || '').split(',')[1]
+  if (dashB64 && opts.dashboard) {
+    const imgObj = new Image()
+    imgObj.src = props.dashboardImage
+    await new Promise(r => { imgObj.onload = r })
+    const ar = imgObj.naturalHeight / imgObj.naturalWidth
+    const imgW = 900
+    const imgH = Math.round(imgW * ar)
+    const imageId = wb.addImage({ base64: dashB64, extension: 'png' })
+    coverWs.addImage(imageId, {
+      tl: { col: 1, row: coverImgRow - 1 },
+      ext: { width: imgW, height: imgH },
+    })
+    coverWs.getRow(coverImgRow).height = imgH * 0.75 + 10
+    coverImgRow += Math.ceil(imgH / 15) + 2
+  }
+
+  coverWs.getCell('B' + coverImgRow).value = 'Data Sources:'
+  coverWs.getCell('B' + coverImgRow).font = { bold: true, size: 11, color: { argb: theme.header } }
+  coverImgRow++
+  for (const t of (cfg.tables || [])) {
+    const colInfo = props.tables.find(x => x.name === t.name)
+    coverWs.getCell('B' + coverImgRow).value = '  \u2022 ' + t.name + ' (' + (colInfo?.rowCount ?? '?') + ' rows, ' + (colInfo?.columns?.length ?? '?') + ' columns)'
+    coverWs.getCell('B' + coverImgRow).font = { size: 10, color: { argb: 'FF64748B' } }
+    coverImgRow++
+  }
+  hasData = true
+
+  // ========================
+  // 2. DASHBOARD SHEET (full-page trimmed screenshot)
+  // ========================
+  if (opts.dashboard) {
+    const dashWs = wb.addWorksheet('Dashboard')
+    dashWs.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, margins: { top: 0.3, bottom: 0.3, left: 0.3, right: 0.3, header: 0, footer: 0 } }
+    const dashFullB64 = (props.dashboardImage || '').split(',')[1]
+    if (dashFullB64) {
+      const imgObj = new Image()
+      imgObj.src = props.dashboardImage
+      await new Promise(r => { imgObj.onload = r })
+      const pw = 900
+      const ar = imgObj.naturalHeight / imgObj.naturalWidth
+      const imgW = Math.min(pw, imgObj.naturalWidth)
+      const imgH = Math.round(imgW * ar)
+      const imageId = wb.addImage({ base64: dashFullB64, extension: 'png' })
+      dashWs.addImage(imageId, {
+        tl: { col: 0, row: 0 },
+        ext: { width: imgW, height: imgH },
+      })
+      dashWs.getColumn(1).width = imgW / 7
+      const rowSpan = Math.ceil(imgH / 15) + 1
+      for (let r = 1; r <= rowSpan; r++) {
+        dashWs.getRow(r).height = 15
+      }
+      dashWs.getRow(1).height = imgH * 0.75
+    }
+  }
+
+  // ========================
+  // 3. GROUP CHARTS BY SOURCE TABLE
+  // ========================
+  const chartImageList = props.chartImages.filter(i => i.chartType !== 'table' && i.queryResult?.length)
+  const canvasTableList = props.chartImages.filter(i => i.chartType === 'table')
+  const pivotDataList = cfg.pivots || []
+
+  const tableGroups = {}
+  const tableOrder = []
+  for (const img of chartImageList) {
+    const t = img.table || '__untagged__'
+    if (!tableGroups[t]) { tableGroups[t] = []; tableOrder.push(t) }
+    tableGroups[t].push(img)
+  }
+
+  // ========================
+  // 4. CHART SHEETS GROUPED BY TABLE
+  // ========================
+  async function writeChartSheet(img) {
     const data = img.queryResult
-    if (!data || !data.length) continue
+    if (!data || !data.length) return false
     const ws = wb.addWorksheet(sanitizeSheetName(img.title || 'Chart'))
     const keys = Object.keys(data[0])
     const chartColor = getChartTypeColor(img.chartType)
+    const b64 = img.dataUrl.split(',')[1]
 
-    // Colored header banner (row 1-2)
-    ws.mergeCells(1, 1, 1, keys.length)
-    const titleCell = ws.getCell(1, 1)
+    let dataStartRow = 1
+
+    // Title
+    ws.mergeCells(dataStartRow, 1, dataStartRow, keys.length)
+    const titleCell = ws.getCell(dataStartRow, 1)
     titleCell.value = img.title || 'Chart'
-    titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
+    titleCell.font = { bold: true, size: 18, color: { argb: 'FFFFFFFF' } }
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: chartColor } }
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
-    ws.getRow(1).height = 28
+    ws.getRow(dataStartRow).height = 36
 
-    // Metadata row (row 2)
-    ws.mergeCells(2, 1, 2, keys.length)
-    const metaCell = ws.getCell(2, 1)
-    metaCell.value = 'Type: ' + (img.chartType || '\u2014') + '  |  X: ' + (img.xCol || '\u2014') + '  |  Y: ' + (img.yCol || '\u2014') + '  |  Aggregation: ' + (img.agg || '\u2014')
-    metaCell.font = { size: 10, color: { argb: 'FF64748B' }, italic: true }
-    metaCell.alignment = { horizontal: 'center', vertical: 'middle' }
-    ws.getRow(2).height = 22
-
-    // Data header row (row 4)
-    const dataHeaderRow = 4
-    ws.addRow([]) // row 3 blank
-    ws.addRow(keys) // row 4 = actual header
-
-    // Determine formula reference sheet
+    // If pivot chart, embed pivot data sub-table
+    let dataHeaderRow = dataStartRow + 1
     const isPivotChart = img._fromPivot && img._pivotRef >= 0
-    const pivotRef = isPivotChart ? img._pivotRef : -1
-    const pivotDataList = cfg.pivots || []
+    if (isPivotChart && img._pivotRef < pivotDataList.length) {
+      const pivotData = pivotDataList[img._pivotRef]
+      if (pivotData && pivotData.result && pivotData.result.length) {
+        const pivotHeader = dataHeaderRow
+        const allPivotHeaders = ['Row', ...(pivotData.headers || [])]
+        ws.addRow([])
+        dataHeaderRow++
+        ws.getCell(dataHeaderRow, 1).value = 'Pivot Data: ' + (pivotData.rowCol || '') + ' x ' + (pivotData.colCol || '')
+        ws.getCell(dataHeaderRow, 1).font = { bold: true, size: 10, color: { argb: 'FF374151' } }
+        ws.mergeCells(dataHeaderRow, 1, dataHeaderRow, allPivotHeaders.length)
+        dataHeaderRow++
+        ws.addRow(allPivotHeaders)
+        for (const prow of pivotData.result) {
+          ws.addRow(allPivotHeaders.map(h => cleanValue(h === 'Row' ? prow._row : prow[h])))
+        }
+        allPivotHeaders.forEach((h, i) => {
+          const cell = ws.getCell(dataHeaderRow, i + 1)
+          cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6B7280' } }
+          cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+        })
+        const pivotLastRow = dataHeaderRow + pivotData.result.length
+        const pivotLastCol = allPivotHeaders.length
+        for (let r = dataHeaderRow + 1; r <= pivotLastRow; r++) {
+          for (let c = 1; c <= pivotLastCol; c++) {
+            ws.getCell(r, c).border = { bottom: { style: 'hair' } }
+          }
+        }
+        dataHeaderRow = pivotLastRow + 2
+      }
+    }
+
+    // Data header
+    ws.getCell(dataHeaderRow, 1).value = ''
+    ws.addRow([])
+    dataHeaderRow++
+    ws.addRow(keys)
+
+    // Formula reference
     const pivotSheetName = isPivotChart
-      ? (pivotDataList.length > 1 ? 'Pivot ' + (pivotRef + 1) : 'Pivot Data')
+      ? (pivotDataList.length > 1 ? 'Pivot ' + (img._pivotRef + 1) : 'Pivot Data')
       : null
 
     let formulaRefSheet, formulaXLetter, formulaYLetter, canUseFormula
 
-    if (isPivotChart && pivotSheetName && pivotRef < pivotDataList.length) {
-      // Pivot chart: reference the Pivot Data sheet using VLOOKUP
-      const pivotData = pivotDataList[pivotRef]
+    if (isPivotChart && pivotSheetName && img._pivotRef < pivotDataList.length) {
+      const pivotData = pivotDataList[img._pivotRef]
       formulaRefSheet = pivotSheetName
       const yIdx = (pivotData.headers || []).indexOf(img.yCol)
       if (yIdx >= 0) {
-        formulaXLetter = 'A' // Row column
-        formulaYLetter = colLetter(yIdx + 1) // +1 because A is 'Row'
-        const lastColLetter = colLetter(pivotData.headers.length) // 0-indexed
+        formulaXLetter = 'A'
+        formulaYLetter = colLetter(yIdx + 1)
+        const lastColLetter = colLetter(pivotData.headers.length)
         canUseFormula = true
-        // Store info for formula construction
-        img._pivotYColIdx = yIdx + 2 // 1-based column index (A=1, B=2...)
+        img._pivotYColIdx = yIdx + 2
         img._pivotLastCol = lastColLetter
       } else {
         canUseFormula = false
       }
     } else {
-      // Regular chart: reference All Data or first table
       formulaRefSheet = refSheet
       formulaXLetter = refColLetters[img.xCol]
       formulaYLetter = refColLetters[img.yCol]
-      canUseFormula = formulaRefSheet && formulaXLetter && formulaYLetter && allDataSheetName
+      canUseFormula = formulaRefSheet && formulaXLetter && formulaYLetter && allData.length > 0
     }
 
     const agg = (img.agg || 'SUM').toUpperCase()
 
-    // Data rows with formulas when possible, static values otherwise
+    // Data rows with formulas
     for (let ri = 0; ri < data.length; ri++) {
       const r = data[ri]
       const rowNum = dataHeaderRow + 1 + ri
@@ -436,8 +577,8 @@ async function exportExcel() {
       ws.addRow(rowData)
     }
 
-    // Style data header and cells
-    const lastRow = dataHeaderRow + data.length
+    // Style data header
+    const dataLastRow = dataHeaderRow + data.length
     const lastCol = keys.length
     for (let c = 1; c <= lastCol; c++) {
       const cell = ws.getCell(dataHeaderRow, c)
@@ -446,43 +587,89 @@ async function exportExcel() {
       cell.alignment = { vertical: 'middle', wrapText: true }
       cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
     }
-    ws.getRow(dataHeaderRow).height = 22
+    ws.getRow(dataHeaderRow).height = 26
 
-    for (let r = dataHeaderRow + 1; r <= lastRow; r++) {
+    for (let r = dataHeaderRow + 1; r <= dataLastRow; r++) {
       for (let c = 1; c <= lastCol; c++) {
         const cell = ws.getCell(r, c)
-        if (r % 2 === 0) cell.fill = ALT_ROW_FILL
+        if (r % 2 === 0) cell.fill = aFill()
         cell.border = { bottom: { style: 'hair' }, left: { style: 'hair' }, right: { style: 'hair' } }
         if (cell.value instanceof Date) cell.numFmt = 'yyyy-mm-dd'
       }
     }
 
-    keys.forEach((k, i) => { ws.getColumn(i + 1).width = Math.max(14, Math.min(k.length * 2 + 6, 30)) })
+    keys.forEach((k, i) => {
+      if (ws.getColumn(i + 1).width < 14) {
+        ws.getColumn(i + 1).width = Math.max(14, Math.min(k.length * 2 + 6, 30))
+      }
+    })
+    ws.autoFilter = { from: { row: dataHeaderRow, col: 1 }, to: { row: dataLastRow, col: lastCol } }
 
-    // Embed chart image below data
-    const imgRow = lastRow + 2
-    const b64 = img.dataUrl.split(',')[1]
+    // Chart image below data
     if (b64) {
       const imgObj = new Image()
       imgObj.src = img.dataUrl
       await new Promise(r => { imgObj.onload = r })
       const ar = imgObj.naturalHeight / imgObj.naturalWidth
-      const imgW = 520
+      const imgW = Math.min(900, imgObj.naturalWidth)
       const imgH = Math.round(imgW * ar)
       const imageId = wb.addImage({ base64: b64, extension: 'png' })
       ws.addImage(imageId, {
-        tl: { col: 0, row: imgRow - 1 },
+        tl: { col: 0, row: dataLastRow + 2 },
         ext: { width: imgW, height: imgH },
       })
+      ws.getColumn(1).width = Math.max(25, imgW / 6)
     }
-    ws.autoFilter = { from: { row: dataHeaderRow, col: 1 }, to: { row: lastRow, col: lastCol } }
-    hasData = true
+    return true
+  }
+
+  if (opts.charts) {
+    for (const tableName of tableOrder) {
+      // Raw data sheet for this table (opt-in)
+      if (opts.rawData && tableName !== '__untagged__') {
+        const tableInfo = props.tables.find(t => t.name === tableName)
+        if (tableInfo) {
+          try {
+            const allRows = await props.fetchFullTable(tableName)
+            if (allRows.length) {
+              const ws = wb.addWorksheet(sanitizeSheetName(tableName))
+              const { lastRow, lastCol } = writeRows(ws, allRows, tableInfo.columns)
+              addAutoFilter(ws, lastCol, lastRow)
+              hasData = true
+            }
+          } catch {}
+        }
+      }
+      // Chart sheets for this table
+      for (const img of tableGroups[tableName]) {
+        if (await writeChartSheet(img)) hasData = true
+      }
+    }
+
+    // Untagged chart sheets at the end (no source table)
+    if (tableGroups['__untagged__']) {
+      for (const img of tableGroups['__untagged__']) {
+        if (await writeChartSheet(img)) hasData = true
+      }
+    }
   }
 
   // ========================
-  // PIVOT DATA SHEETS
+  // 5. CANVAS TABLE SHEETS
   // ========================
-  const pivotDataList = cfg.pivots || []
+  if (opts.tables) {
+    for (const item of canvasTableList) {
+      if (!item.queryResult || !item.queryResult.length || !item.columns) continue
+      const ws = wb.addWorksheet(sanitizeSheetName(item.title || 'Data Table'))
+      const { lastRow, lastCol } = writeRows(ws, item.queryResult, item.columns.map(c => ({ name: c })))
+      addAutoFilter(ws, lastCol, lastRow)
+      hasData = true
+    }
+  }
+
+  // ========================
+  // 6. PIVOT DATA SHEETS
+  // ========================
   for (let pi = 0; pi < pivotDataList.length; pi++) {
     const pivotData = pivotDataList[pi]
     if (!pivotData || !pivotData.result || !pivotData.result.length) continue
@@ -497,7 +684,7 @@ async function exportExcel() {
         const v = h === 'Row' ? r._row : r[h]; const s = v != null ? String(v).length : 0
         return s > m ? s : m
       }, h.length)
-      ws.getColumn(i + 1).width = Math.min(Math.max(maxLen + 3, 8), 40)
+    ws.getColumn(i + 1).width = Math.min(Math.max(maxLen + 3, 10), 60)
     })
     const lr = pivotData.result.length + 1
     const lc = allHeaders.length
@@ -508,34 +695,40 @@ async function exportExcel() {
   }
 
   // ========================
-  // PER-TABLE DATA SHEETS
+  // 7. RAW DATA APPENDIX (opt-in, remaining untagged tables)
   // ========================
-  for (const table of props.tables) {
-    try {
-      const allRows = await props.fetchFullTable(table.name)
-      if (!allRows.length) continue
-      const ws = wb.addWorksheet(sanitizeSheetName(table.name))
-      const { lastRow, lastCol } = writeRows(ws, allRows, table.columns)
-      addAutoFilter(ws, lastCol, lastRow)
-      hasData = true
-    } catch {}
+  if (opts.rawData) {
+    for (const table of props.tables) {
+      if (tableGroups[table.name]) continue
+      try {
+        const allRows = await props.fetchFullTable(table.name)
+        if (!allRows.length) continue
+        const ws = wb.addWorksheet(sanitizeSheetName(table.name))
+        const { lastRow, lastCol } = writeRows(ws, allRows, table.columns)
+        addAutoFilter(ws, lastCol, lastRow)
+        hasData = true
+      } catch {}
+    }
   }
 
   // ========================
-  // ALL DATA SHEET
+  // 8. ALL DATA SHEET (for formula references)
   // ========================
-  try {
-    const allData = await props.chartDataQuery()
-    if (allData.length) {
-      const dataCols = Object.keys(allData[0])
-      const ws = wb.addWorksheet('All Data')
-      const { lastRow, lastCol, headers } = writeRows(ws, allData, dataCols)
-      addAutoFilter(ws, lastCol, lastRow)
-      hasData = true
-    }
-  } catch {}
+  if (allData.length) {
+    const dataCols = Object.keys(allData[0])
+    const ws = wb.addWorksheet('All Data')
+    const { lastRow, lastCol } = writeRows(ws, allData, dataCols)
+    addAutoFilter(ws, lastCol, lastRow)
+    hasData = true
+  }
 
   if (!hasData) { showMessage('No data to export.', 'error'); return }
+
+  wb.eachSheet(ws => {
+    if (ws.name !== 'Dashboard' && ws.name !== 'Cover') {
+      ws.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5, header: 0.3, footer: 0.3 } }
+    }
+  })
 
   const buf = await wb.xlsx.writeBuffer()
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
@@ -544,6 +737,7 @@ async function exportExcel() {
   a.href = url; a.download = name + '.xlsx'; a.click()
   URL.revokeObjectURL(url)
   showMessage('Excel workbook with charts downloaded!')
+  } catch (err) { showMessage('Export failed: ' + (err.message || err), 'error') }
 }
 
 // --- PDF export ---
@@ -591,7 +785,10 @@ async function exportPDF() {
 
   // --- Individual chart pages ---
   for (const img of props.chartImages) {
-    doc.addPage('p', 'mm', 'a4')
+    if (!img.dataUrl) continue
+    doc.addPage('l', 'mm')
+    const pw = 297, ph = 210
+    const imgW = pw - margin * 2
     let y = margin
 
     doc.setFontSize(14)
@@ -602,8 +799,7 @@ async function exportPDF() {
     doc.text('Type: ' + (img.chartType || '') + ' | X: ' + (img.xCol || '') + ' | Y: ' + (img.yCol || '') + ' | Aggregation: ' + (img.agg || ''), margin, y)
     y += 6
 
-    const imgH = 100
-    const imgW = pageW
+    const imgH = 80
     const padding = 5
     doc.addImage(img.dataUrl, 'PNG', margin, y + padding, imgW, imgH)
     y += imgH + padding * 2
@@ -630,7 +826,7 @@ async function exportPDF() {
           doc.text(v, margin + i * colW + 1, y + 3)
         })
         y += 4
-        if (y > 275) break
+        if (y > ph - margin) break
       }
     }
   }
@@ -677,7 +873,7 @@ async function downloadAllImages() {
     const JSZip = (await import('jszip')).default
     const zip = new JSZip()
     for (const img of props.chartImages) {
-      const b64 = img.dataUrl.split(',')[1]
+    const b64 = (img.dataUrl || '').split(',')[1]
       if (b64) zip.file((img.title || 'chart').replace(/[^a-z0-9]/gi, '_') + '.png', b64, { base64: true })
     }
     const blob = await zip.generateAsync({ type: 'blob' })

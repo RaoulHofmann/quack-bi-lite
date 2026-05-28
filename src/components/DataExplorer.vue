@@ -101,7 +101,7 @@
     <!-- SQL query -->
     <div v-if="selectedTable" class="bg-white border border-gray-200 rounded-xl p-4">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Run a SQL query</h3>
+        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Run an SQL query</h3>
         <div class="flex items-center gap-2">
           <button @click="runQuery" :disabled="!sqlQuery.trim() || queryLoading"
             class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-40">
@@ -110,9 +110,105 @@
           <button @click="resetQuery" class="text-xs text-gray-500 hover:underline">Reset</button>
         </div>
       </div>
-      <textarea v-model="sqlQuery" rows="2"
+
+      <div class="flex border-b border-gray-200 mb-3">
+        <button @click="queryMode = 'sql'" class="px-3 py-1.5 text-xs font-medium transition-colors"
+          :class="queryMode === 'sql' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'">SQL</button>
+        <button @click="queryMode = 'visual'" class="px-3 py-1.5 text-xs font-medium transition-colors"
+          :class="queryMode === 'visual' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'">Visual</button>
+      </div>
+
+      <!-- SQL mode -->
+      <textarea v-if="queryMode === 'sql'" v-model="sqlQuery" rows="2"
         class="w-full border border-gray-200 rounded-lg p-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
         :placeholder="sqlPlaceholder"></textarea>
+
+      <!-- Visual mode -->
+      <div v-if="queryMode === 'visual'" class="space-y-3">
+        <div>
+          <label class="text-xs font-medium text-gray-500 mb-1 block">Columns</label>
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="col in tableColumns" :key="col.name" @click="toggleQbColumn(col.name)"
+              class="text-xs rounded px-2 py-0.5 transition-colors"
+              :class="qbColumns.includes(col.name) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+              {{ col.name }}
+            </button>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1 block">Aggregate</label>
+            <select v-model="qbAggFn" class="w-full border border-gray-200 rounded p-1.5 text-xs bg-white">
+              <option value="SUM">SUM</option>
+              <option value="AVG">AVG</option>
+              <option value="COUNT">COUNT</option>
+              <option value="MIN">MIN</option>
+              <option value="MAX">MAX</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1 block">Aggregate column</label>
+            <select v-model="qbAggCol" class="w-full border border-gray-200 rounded p-1.5 text-xs bg-white">
+              <option value="">None</option>
+              <option v-for="c in numericCols" :key="c.name" :value="c.name">{{ c.name }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1 block">Group by</label>
+            <select v-model="qbGroupCol" class="w-full border border-gray-200 rounded p-1.5 text-xs bg-white">
+              <option value="">None</option>
+              <option v-for="c in tableColumns" :key="c.name" :value="c.name">{{ c.name }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1 block">Filter column</label>
+            <select v-model="qbFilterCol" class="w-full border border-gray-200 rounded p-1.5 text-xs bg-white">
+              <option value="">None</option>
+              <option v-for="c in tableColumns" :key="c.name" :value="c.name">{{ c.name }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1 block">Operator</label>
+            <select v-model="qbFilterOp" class="w-full border border-gray-200 rounded p-1.5 text-xs bg-white">
+              <option value="=">=</option>
+              <option value="!=">!=</option>
+              <option value="&gt;">&gt;</option>
+              <option value="&lt;">&lt;</option>
+              <option value="LIKE">LIKE</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1 block">Value</label>
+            <input v-model="qbFilterVal" type="text" class="w-full border border-gray-200 rounded p-1.5 text-xs" />
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1 block">Sort column</label>
+            <select v-model="qbSortCol" class="w-full border border-gray-200 rounded p-1.5 text-xs bg-white">
+              <option value="">None</option>
+              <option v-for="c in tableColumns" :key="c.name" :value="c.name">{{ c.name }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1 block">Direction</label>
+            <select v-model="qbSortDir" class="w-full border border-gray-200 rounded p-1.5 text-xs bg-white">
+              <option value="DESC">Descending</option>
+              <option value="ASC">Ascending</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1 block">Limit</label>
+            <input v-model.number="qbLimit" type="number" min="1" max="5000" class="w-full border border-gray-200 rounded p-1.5 text-xs" />
+          </div>
+        </div>
+        <div v-if="qbGeneratedSql" class="bg-gray-50 rounded-lg p-2 border border-gray-200">
+          <pre class="text-xs font-mono text-gray-600 whitespace-pre-wrap">{{ qbGeneratedSql }}</pre>
+        </div>
+      </div>
+
       <div v-if="queryResult.length" class="mt-3 border border-gray-200 rounded-lg overflow-x-auto max-h-72 overflow-y-auto">
         <table class="w-full text-xs border-collapse">
           <thead class="sticky top-0 z-10">
@@ -128,6 +224,14 @@
         </table>
         <p v-if="queryResult.length > 200" class="text-xs text-gray-400 p-2 text-center bg-gray-50">Showing 200 of {{ queryResult.length }} rows</p>
       </div>
+      <div v-if="queryResult.length" class="mt-2 flex items-center gap-2">
+        <input v-model="tableNameInput" type="text" placeholder="Table name..."
+          class="flex-1 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        <button @click="saveQueryAsTable" :disabled="!tableNameInput.trim() || savingTable"
+          class="bg-green-600 text-white px-2.5 py-1 rounded text-xs font-medium hover:bg-green-700 disabled:opacity-40 whitespace-nowrap">
+          {{ savingTable ? 'Saving...' : 'Add as table' }}
+        </button>
+      </div>
       <p v-if="queryError" class="mt-2 text-xs text-red-500">{{ queryError }}</p>
     </div>
   </div>
@@ -140,6 +244,7 @@ const props = defineProps({
   tables: { type: Array, default: () => [] },
   fetchFullTable: { type: Function, default: async () => [] },
   runSql: { type: Function, default: async () => [] },
+  addQueryResult: { type: Function, default: async () => {} },
 })
 
 const selectedTable = ref('')
@@ -158,6 +263,20 @@ const pageSize = 50
 const tableRows = ref([])
 const totalRows = ref(0)
 
+const savingTable = ref(false)
+const tableNameInput = ref('')
+
+const queryMode = ref('visual')
+const qbColumns = ref([])
+const qbAggCol = ref('')
+const qbAggFn = ref('SUM')
+const qbGroupCol = ref('')
+const qbFilterCol = ref('')
+const qbFilterOp = ref('=')
+const qbFilterVal = ref('')
+const qbSortCol = ref('')
+const qbSortDir = ref('DESC')
+const qbLimit = ref(100)
 
 const numericCols = computed(() => tableColumns.value.filter(c =>
   ['INT', 'DOUBLE', 'FLOAT', 'DECIMAL', 'BIGINT', 'SMALLINT', 'TINYINT'].some(t => c.type.toUpperCase().includes(t))
@@ -170,6 +289,25 @@ const sqlPlaceholder = computed(() => {
 const tableColumns = computed(() => {
   const t = props.tables.find(x => x.name === selectedTable.value)
   return t?.columns || []
+})
+
+const qbGeneratedSql = computed(() => {
+  if (!selectedTable.value || !qbColumns.value.length) return ''
+  let sql = 'SELECT "' + qbColumns.value.join('", "') + '"'
+  if (qbAggCol.value && qbAggFn.value) {
+    sql = 'SELECT "' + qbGroupCol.value + '", ' + qbAggFn.value + '("' + qbAggCol.value + '") AS value'
+    sql += ' FROM "' + selectedTable.value + '"'
+    sql += ' GROUP BY "' + qbGroupCol.value + '"'
+  } else {
+    sql += ' FROM "' + selectedTable.value + '"'
+  }
+  if (qbFilterCol.value && qbFilterVal.value) {
+    const val = qbFilterOp.value === 'LIKE' ? "'%" + qbFilterVal.value + "%'" : "'" + qbFilterVal.value + "'"
+    sql += ' WHERE "' + qbFilterCol.value + '" ' + qbFilterOp.value + ' ' + val
+  }
+  if (qbSortCol.value) sql += ' ORDER BY "' + qbSortCol.value + '" ' + qbSortDir.value
+  if (qbLimit.value) sql += ' LIMIT ' + qbLimit.value
+  return sql
 })
 
 const sortedRows = computed(() => {
@@ -230,6 +368,7 @@ function selectTable(name) {
   queryResult.value = []
   queryColumns.value = []
   queryError.value = ''
+  resetQueryBuilder()
   loadPreview(name)
 }
 
@@ -293,6 +432,37 @@ function resetQuery() {
   queryResult.value = []
   queryColumns.value = []
   queryError.value = ''
+  resetQueryBuilder()
+}
+
+function resetQueryBuilder() {
+  qbColumns.value = []
+  qbAggCol.value = ''
+  qbAggFn.value = 'SUM'
+  qbGroupCol.value = ''
+  qbFilterCol.value = ''
+  qbFilterOp.value = '='
+  qbFilterVal.value = ''
+  qbSortCol.value = ''
+  qbSortDir.value = 'DESC'
+  qbLimit.value = 100
+}
+
+function toggleQbColumn(name) {
+  const idx = qbColumns.value.indexOf(name)
+  if (idx >= 0) qbColumns.value.splice(idx, 1)
+  else qbColumns.value.push(name)
+}
+
+function suggestTableName() {
+  const base = 'query_result'
+  let name = base
+  let i = 1
+  while (props.tables.find(t => t.name === name)) {
+    i++
+    name = base + '_' + i
+  }
+  return name
 }
 
 async function runQuery() {
@@ -306,11 +476,28 @@ async function runQuery() {
     if (res.length) {
       queryColumns.value = Object.keys(res[0])
       queryResult.value = res
+      tableNameInput.value = suggestTableName()
     }
   } catch (err) {
     queryError.value = 'Query error — check your SQL syntax and column names'
   }
   queryLoading.value = false
+}
+
+async function saveQueryAsTable() {
+  const name = tableNameInput.value.trim()
+  if (!name || !sqlQuery.value.trim()) return
+  savingTable.value = true
+  queryError.value = ''
+  try {
+    await props.addQueryResult(name, sqlQuery.value)
+    queryResult.value = []
+    queryColumns.value = []
+    tableNameInput.value = ''
+  } catch (err) {
+    queryError.value = 'Failed to create table — name may already exist'
+  }
+  savingTable.value = false
 }
 
 onMounted(() => {
@@ -322,6 +509,12 @@ onMounted(() => {
 watch(() => props.tables.length, (len) => {
   if (len && !selectedTable.value) {
     selectTable(props.tables[0].name)
+  }
+})
+
+watch(qbGeneratedSql, (newSql) => {
+  if (queryMode.value === 'visual' && newSql) {
+    sqlQuery.value = newSql
   }
 })
 </script>

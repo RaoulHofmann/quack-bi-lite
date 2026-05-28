@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="bg-gray-50">
     <header class="bg-white border-b border-gray-200 px-6 py-3">
       <div class="max-w-[1600px] mx-auto flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -21,7 +21,12 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </template>
-          <button @click="showAbout = true" class="ml-2 p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="About">
+          <button @click="showTutorial = true" class="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Tutorial">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+            </svg>
+          </button>
+          <button @click="showAbout = true" class="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="About">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10" />
               <path stroke-linecap="round" d="M12 16v-4M12 8h.01" />
@@ -31,7 +36,6 @@
       </div>
     </header>
 
-    <!-- About modal -->
     <div v-if="showAbout" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30" @click.self="showAbout = false">
       <div class="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 p-6">
         <div class="flex items-center gap-3 mb-4">
@@ -42,9 +46,9 @@
           </div>
         </div>
         <div class="text-sm text-gray-600 space-y-2">
-          <p>A ducky little BI tool that lives entirely in your browser. Upload CSVs, explore with SQL, build dashboards, and export to Excel/PDF — all without sending data anywhere.</p>
+          <p>A ducky little BI tool that lives entirely in your browser. Upload CSVs, explore data, build dashboards, and export to Excel/PDF — all without sending data anywhere.</p>
           <p class="text-xs text-gray-400 pt-2">
-            Built with Vue 3 &bull; DuckDB-WASM &bull; Chart.js &bull; 🤗 Transformers.js<br>
+            Built with Vue 3 &bull; DuckDB-WASM &bull; Chart.js<br>
             <a href="https://github.com/RaoulHofmann/quack-bi-lite" class="text-blue-600 hover:underline">GitHub</a>
           </p>
         </div>
@@ -52,17 +56,37 @@
       </div>
     </div>
 
-    <main class="max-w-[1600px] mx-auto p-6">
+     <main class="mx-auto p-6" :style="currentStep === 3 ? 'max-width:100%' : 'max-width:1600px'">
       <!-- Step 1: Upload -->
       <div v-if="currentStep === 1">
-        <div class="mb-6">
-          <h2 class="text-xl font-semibold text-gray-800">Upload your data</h2>
-          <p class="text-sm text-gray-500 mt-1">You can upload multiple CSV files. Each file becomes a table you can query and join.</p>
+        <!-- App overview -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 mb-6">
+          <div class="flex gap-3">
+            <svg class="w-6 h-6 text-blue-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+            </svg>
+            <div>
+              <h3 class="text-sm font-semibold text-blue-800">What is Quack BI Lite?</h3>
+              <p class="text-xs text-blue-600 mt-1 leading-relaxed">
+                A browser-based BI tool that lets you upload data, explore it with SQL, build interactive dashboards, and export reports — all locally, nothing leaves your machine.
+                Follow the <strong>4 steps</strong> above to go from raw data to a polished report.
+              </p>
+            </div>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <div v-for="(desc, i) in stepDescriptions" :key="i"
+              class="flex items-center gap-1.5 text-xs bg-white/70 border border-blue-100 rounded-full px-3 py-1 text-blue-700">
+              <span class="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">{{ i + 1 }}</span>
+              <span>{{ desc }}</span>
+            </div>
+          </div>
         </div>
 
-        <CsvUploader @uploaded="handleFileUpload" />
-
-        <!-- Quick start with sample data -->
+        <div class="mb-6">
+          <h2 class="text-xl font-semibold text-gray-800">Upload your data</h2>
+          <p class="text-sm text-gray-500 mt-1">Upload CSV, Excel, or JSON files. Each file becomes a table you can query and join.</p>
+        </div>
+        <DataUploader @uploaded="handleFileUpload" />
         <div v-if="!tables.length" class="mt-6">
           <div class="relative">
             <div class="absolute inset-0 flex items-center">
@@ -81,8 +105,6 @@
             <p class="text-xs text-purple-400 mt-1">Try it with {{ sampleFiles }} pre-made CSV files (sales, products, employees)</p>
           </button>
         </div>
-
-        <!-- Loaded tables -->
         <div v-if="tables.length" class="mt-6 space-y-3">
           <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Loaded tables</h3>
           <div v-for="t in tables" :key="t.name"
@@ -95,12 +117,12 @@
               <button @click="removeTable(t.name)" class="text-red-400 hover:text-red-600 ml-3">Remove</button>
             </div>
           </div>
-          <div class="flex gap-3 mt-4">
-            <button @click="goToStep(2)" :disabled="!tables.length"
-              class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              Continue to build
-            </button>
-          </div>
+<!--          <div class="flex gap-3 mt-4">-->
+<!--            <button @click="goToStep(2)" :disabled="!tables.length"-->
+<!--              class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">-->
+<!--              Continue to explore-->
+<!--            </button>-->
+<!--          </div>-->
         </div>
       </div>
 
@@ -110,87 +132,149 @@
           <h2 class="text-xl font-semibold text-gray-800">Explore your data</h2>
           <p class="text-sm text-gray-500 mt-1">Browse tables, profile columns, and run ad-hoc SQL queries before building charts.</p>
         </div>
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div class="xl:col-span-2">
-            <DataExplorer
-              :tables="tables"
-              :fetch-full-table="fetchFullTableData"
-              :run-sql="runSqlQuery"
-            />
-          </div>
-          <div>
-            <ChatPanel
-              :schema-text="exploreSchemaText"
-              :run-sql="runSqlQuery"
-              @apply-chart="onAiChartSuggestion"
-              @run-sql="onAiRunSql"
-            />
-          </div>
+        <div>
+          <DataExplorer
+            :tables="tables"
+            :fetch-full-table="fetchFullTableData"
+            :run-sql="runSqlQuery"
+            :add-query-result="addQueryResult"
+          />
         </div>
-        <div class="flex gap-3 mt-6">
-          <button @click="goToStep(1)" class="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Back</button>
-          <button @click="goToStep(3)" class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-            Continue to build
-          </button>
-        </div>
+<!--        <div class="flex gap-3 mt-6">-->
+<!--          <button @click="goToStep(1)" class="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Back</button>-->
+<!--          <button @click="goToStep(3)" class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">-->
+<!--            Continue to build-->
+<!--          </button>-->
+<!--        </div>-->
       </div>
 
       <!-- Step 3: Build -->
-      <div v-if="currentStep === 3 && tables.length" class="flex flex-col" style="height:calc(100vh - 4rem)">
-        <div class="mb-6 shrink-0">
+      <div v-if="currentStep === 3 && tables.length">
+        <div class="mb-4">
           <h2 class="text-xl font-semibold text-gray-800">Build your dashboard</h2>
-          <p class="text-sm text-gray-500 mt-1">Drag charts to position them. Click to configure in the properties panel.</p>
+          <p class="text-sm text-gray-500 mt-1">Click <strong>+ Chart</strong> on the canvas toolbar to add charts. Drag to position them. Click a chart to configure in the properties panel.</p>
         </div>
 
-        <!-- Data sources & join config -->
-        <div class="bg-white border border-gray-200 rounded-xl p-4 mb-6 shrink-0">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Data sources</h3>
-            <button @click="showJoinConfig = !showJoinConfig" class="text-xs text-blue-600 hover:underline">
-              {{ showJoinConfig ? 'Hide' : 'Configure joins' }}
+        <div class="flex gap-4" style="height:calc(100vh - 10rem)">
+          <div class="w-80 shrink-0 overflow-y-auto space-y-4 pr-1">
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Data sources</h3>
+                <button @click="showJoinModal = true" class="text-xs text-blue-600 hover:underline">
+                  Configure joins
+                </button>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="t in tables" :key="t.name"
+                  class="text-xs bg-gray-100 text-gray-600 rounded-full px-3 py-1">{{ t.name }} ({{ t.columns.length }} cols)</span>
+              </div>
+              <div v-if="joins.length > 0" class="mt-4 border-t border-gray-100 pt-4">
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Table relationships</h4>
+                <svg :viewBox="'0 0 ' + joinSvgW + ' 120'" class="w-full" style="height:120px">
+                  <defs>
+                    <marker id="arrowHead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                      <path d="M0,0 L8,3 L0,6" fill="#3B82F6" />
+                    </marker>
+                  </defs>
+                  <g v-for="(j, ji) in joins" :key="ji">
+                    <rect :x="20" :y="10 + ji * 28" width="140" height="22" rx="4" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5" />
+                    <text :x="90" :y="25 + ji * 28" text-anchor="middle" font-size="10" fill="#1E40AF" font-weight="600">{{ j.table1 }}</text>
+                    <text :x="90" :y="37 + ji * 28" text-anchor="middle" font-size="8" fill="#64748B">{{ j.col1 || '?' }}</text>
+                    <rect :x="165" :y="12 + ji * 28" width="64" height="18" rx="9" fill="#DBEAFE" />
+                    <text :x="197" :y="25 + ji * 28" text-anchor="middle" font-size="8" fill="#1E40AF" font-weight="600">{{ j.type }}</text>
+                    <line :x1="160" :y1="21 + ji * 28" :x2="235" :y2="21 + ji * 28" stroke="#3B82F6" stroke-width="1.5" marker-end="url(#arrowHead)" />
+                    <rect :x="240" :y="10 + ji * 28" width="140" height="22" rx="4" fill="#F0FDF4" stroke="#10B981" stroke-width="1.5" />
+                    <text :x="310" :y="25 + ji * 28" text-anchor="middle" font-size="10" fill="#166534" font-weight="600">{{ j.table2 }}</text>
+                    <text :x="310" :y="37 + ji * 28" text-anchor="middle" font-size="8" fill="#64748B">{{ j.col2 || '?' }}</text>
+                  </g>
+                </svg>
+              </div>
+            </div>
+
+            <div v-if="chartSuggestions.length" class="bg-white border border-gray-200 rounded-xl p-4">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Suggested charts</h3>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="(s, i) in chartSuggestions" :key="'r'+i" @click="applySuggestion(s)"
+                  class="text-xs border rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors text-left"
+                  :class="s.chartType === 'line' ? 'border-green-200 hover:border-green-300' : s.chartType === 'pie' ? 'border-purple-200 hover:border-purple-300' : 'border-blue-200 hover:border-blue-200'">
+                  <span class="block font-medium text-gray-700">{{ s.label }}</span>
+                  <span class="block text-gray-400 mt-0.5">{{ s.xCol }} &rarr; {{ s.agg }} of {{ s.yCol }} ({{ s.chartType }})</span>
+                </button>
+              </div>
+            </div>
+
+            <div v-for="(pivot, pi) in sharedPivots" :key="pivot.id" class="bg-white border border-gray-200 rounded-xl p-4 relative">
+              <button @click="removePivot(pi)" class="absolute top-2 right-2 text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+              <div class="mb-2 text-xs text-gray-400 italic">Pivot {{ pi + 1 }}</div>
+              <div class="flex items-center justify-end gap-2 mb-2">
+                <button @click="applySuggestion({ label: pivot.rowCol + ' pivot', xCol: pivot.rowCol, yCol: pivot.valCol, agg: pivot.agg, chartType: 'bar', _fromPivot: true, _pivotHeaders: pivot.headers, _pivotRef: pi })"
+                  class="text-xs bg-purple-600 text-white px-2.5 py-1 rounded hover:bg-purple-700 transition-colors">
+                  Add chart from pivot
+                </button>
+              </div>
+              <div class="overflow-x-auto max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+                <table class="w-full text-xs border-collapse">
+                  <thead class="sticky top-0 z-10">
+                    <tr>
+                      <th class="px-2 py-1.5 text-left font-semibold text-gray-500 uppercase border-b bg-gray-100 whitespace-nowrap">{{ pivot.rowCol || 'Row' }}</th>
+                      <th v-for="h in pivot.headers" :key="h" class="px-2 py-1.5 text-right font-semibold text-gray-500 uppercase border-b bg-gray-100 whitespace-nowrap">{{ h }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, ri) in pivot.result" :key="ri" class="border-b border-gray-50 even:bg-gray-50/50 hover:bg-blue-50/30">
+                      <td class="px-2 py-1 font-medium text-gray-700 whitespace-nowrap">{{ row._row }}</td>
+                      <td v-for="h in pivot.headers" :key="h" class="px-2 py-1 text-right text-gray-600 whitespace-nowrap">{{ row[h] != null ? (typeof row[h] === 'number' ? row[h].toLocaleString() : String(row[h]).slice(0, 50)) : '\u2014' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <button @click="showPivotModal = true"
+              class="w-full bg-white border border-gray-200 rounded-xl p-4 text-left hover:bg-gray-50 transition-colors">
+              <div class="flex items-center gap-3">
+                <svg class="w-5 h-5 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                </svg>
+                <div>
+                  <p class="text-sm font-semibold text-gray-700">Create pivot table</p>
+                  <p class="text-xs text-gray-400 mt-0.5">Cross-tabulate rows, columns, and values</p>
+                </div>
+              </div>
             </button>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <span v-for="t in tables" :key="t.name"
-              class="text-xs bg-gray-100 text-gray-600 rounded-full px-3 py-1">{{ t.name }} ({{ t.columns.length }} cols)</span>
-          </div>
 
-          <!-- Relationship diagram -->
-          <div v-if="joins.length > 0" class="mt-4 border-t border-gray-100 pt-4">
-            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Table relationships</h4>
-            <svg :viewBox="'0 0 ' + joinSvgW + ' 120'" class="w-full max-w-2xl" style="height:120px">
-              <defs>
-                <marker id="arrowHead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                  <path d="M0,0 L8,3 L0,6" fill="#3B82F6" />
-                </marker>
-              </defs>
-              <g v-for="(j, ji) in joins" :key="ji">
-                <!-- Table 1 box -->
-                <rect :x="20" :y="10 + ji * 28" width="140" height="22" rx="4" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5" />
-                <text :x="90" :y="25 + ji * 28" text-anchor="middle" font-size="10" fill="#1E40AF" font-weight="600">{{ j.table1 }}</text>
-                <text :x="90" :y="37 + ji * 28" text-anchor="middle" font-size="8" fill="#64748B">{{ j.col1 || '?' }}</text>
-                <!-- Join type label -->
-                <rect :x="165" :y="12 + ji * 28" width="64" height="18" rx="9" fill="#DBEAFE" />
-                <text :x="197" :y="25 + ji * 28" text-anchor="middle" font-size="8" fill="#1E40AF" font-weight="600">{{ j.type }}</text>
-                <!-- Line connecting tables -->
-                <line :x1="160" :y1="21 + ji * 28" :x2="235" :y2="21 + ji * 28" stroke="#3B82F6" stroke-width="1.5" marker-end="url(#arrowHead)" />
-                <!-- Table 2 box -->
-                <rect :x="240" :y="10 + ji * 28" width="140" height="22" rx="4" fill="#F0FDF4" stroke="#10B981" stroke-width="1.5" />
-                <text :x="310" :y="25 + ji * 28" text-anchor="middle" font-size="10" fill="#166534" font-weight="600">{{ j.table2 }}</text>
-                <text :x="310" :y="37 + ji * 28" text-anchor="middle" font-size="8" fill="#64748B">{{ j.col2 || '?' }}</text>
-              </g>
-            </svg>
+          <div class="flex-1 min-h-0">
+            <GridCanvas
+            ref="canvasRef"
+            :tables="tables"
+            :columns="allColumns"
+            :numeric-columns="allNumericCols"
+            :view-only="viewOnly"
+            @toggle-view="viewOnly = !viewOnly"
+          />
           </div>
+        </div>
 
-          <!-- Join config -->
-          <div v-if="showJoinConfig" class="mt-4 border-t border-gray-100 pt-4 space-y-3">
+      <!-- Join config modal -->
+      <div v-if="showJoinModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30" @click.self="showJoinModal = false">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full mx-4 p-6 max-h-[80vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Configure joins</h3>
+            <button @click="showJoinModal = false" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+          </div>
+          <p class="text-sm text-gray-500 mb-4">Define relationships between your tables to enable cross-table queries and charts.</p>
+          <div v-if="!joins.length" class="text-sm text-gray-400 text-center py-8">No joins yet. Click below to add one.</div>
+          <div class="space-y-3">
             <div v-for="(j, ji) in joins" :key="ji"
-              class="flex items-center gap-2 text-sm flex-wrap">
+              class="flex items-center gap-2 text-sm flex-wrap bg-gray-50 rounded-lg p-3">
               <select :value="j.table1" @change="updateJoin(ji, 'table1', $event.target.value)"
                 class="border border-gray-200 rounded p-1 text-xs bg-white">
                 <option v-for="t in tables" :key="t.name" :value="t.name">{{ t.name }}</option>
               </select>
-              <span>.</span>
+              <span class="text-gray-400">.</span>
               <select :value="j.col1" @change="updateJoin(ji, 'col1', $event.target.value)"
                 class="border border-gray-200 rounded p-1 text-xs bg-white">
                 <option value="">-- column --</option>
@@ -207,114 +291,43 @@
                 class="border border-gray-200 rounded p-1 text-xs bg-white">
                 <option v-for="t in tables" :key="t.name" :value="t.name">{{ t.name }}</option>
               </select>
-              <span>.</span>
+              <span class="text-gray-400">.</span>
               <select :value="j.col2" @change="updateJoin(ji, 'col2', $event.target.value)"
                 class="border border-gray-200 rounded p-1 text-xs bg-white">
                 <option value="">-- column --</option>
                 <option v-for="c in getColumns(j.table2)" :key="c.name" :value="c.name">{{ c.name }}</option>
               </select>
-              <button @click="removeJoin(ji)" class="text-red-400 hover:text-red-600 text-xs ml-1">&times;</button>
+              <button @click="removeJoin(ji)" class="text-red-400 hover:text-red-600 text-xs ml-auto shrink-0">&times;</button>
             </div>
-            <button @click="addJoin" class="text-xs text-blue-600 hover:underline">+ Add join</button>
+          </div>
+          <button @click="addJoin" class="mt-3 text-xs text-blue-600 hover:underline flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+            Add join
+          </button>
+          <div class="mt-6 flex justify-end">
+            <button @click="showJoinModal = false" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Done</button>
           </div>
         </div>
+      </div>
 
-        <!-- Suggested charts -->
-        <div v-if="chartSuggestions.length || aiSuggestions.length" class="bg-white border border-gray-200 rounded-xl p-4 mb-6 shrink-0">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Suggested charts</h3>
-            <button @click="runAiSuggest" :disabled="aiStatus === 'loading'"
-              class="text-xs px-2.5 py-1 rounded font-medium transition-colors"
-              :class="aiStatus === 'ready' ? 'bg-purple-600 text-white hover:bg-purple-700' : aiStatus === 'loading' ? 'bg-gray-200 text-gray-400 cursor-wait' : 'border border-purple-200 text-purple-600 hover:bg-purple-50'">
-              {{ aiStatus === 'loading' ? 'AI (' + aiProgress + '%)' : aiStatus === 'error' ? 'AI error' : aiSuggestions.length ? 'AI re-suggest' : 'AI suggest' }}
-            </button>
+      <!-- Pivot table modal -->
+      <div v-if="showPivotModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30" @click.self="showPivotModal = false">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto">
+          <div class="flex items-center justify-between p-6 pb-0">
+            <h3 class="text-lg font-semibold text-gray-800">Create pivot table</h3>
+            <button @click="showPivotModal = false" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <button v-for="(s, i) in chartSuggestions" :key="'r'+i" @click="applySuggestion(s)"
-              class="text-xs border rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors text-left"
-              :class="s.chartType === 'line' ? 'border-green-200 hover:border-green-300' : s.chartType === 'pie' ? 'border-purple-200 hover:border-purple-300' : 'border-blue-200 hover:border-blue-200'">
-              <span class="block font-medium text-gray-700">{{ s.label }}</span>
-              <span class="block text-gray-400 mt-0.5">{{ s.xCol }} → {{ s.agg }} of {{ s.yCol }} ({{ s.chartType }})</span>
-            </button>
-            <button v-for="(s, i) in aiSuggestions" :key="'a'+i" @click="applySuggestion(s)"
-              class="text-xs border rounded-lg px-3 py-2 hover:bg-purple-50 transition-colors text-left border-purple-200">
-              <span class="block font-medium text-purple-700 flex items-center gap-1">
-                {{ s.label }}
-                <span class="text-[9px] bg-purple-100 text-purple-500 rounded px-1">AI</span>
-              </span>
-              <span class="block text-gray-400 mt-0.5">{{ s.xCol }} → {{ s.agg }} of {{ s.yCol }} ({{ s.chartType }})</span>
-            </button>
-          </div>
+            <PivotTable
+              v-if="tables[0]"
+              :selected-table="tables[0].name"
+              :table-columns="tables[0]?.columns || []"
+              :numeric-cols="allNumericCols"
+              :run-sql="runSqlQuery"
+              @add-pivot-chart="applySuggestion"
+              @pivot-generated="addPivot"
+            />
         </div>
-
-        <!-- Saved pivot tables -->
-        <div v-for="(pivot, pi) in sharedPivots" :key="pivot.id" class="mb-4 shrink-0 relative bg-white border border-gray-200 rounded-xl p-4">
-          <button @click="removePivot(pi)" class="absolute top-2 right-2 text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
-          <div class="mb-2 text-xs text-gray-400 italic">Pivot {{ pi + 1 }}</div>
-          <div class="flex items-center justify-end gap-2 mb-2">
-            <button @click="onAiChartSuggestion({ label: pivot.rowCol + ' pivot', xCol: pivot.rowCol, yCol: pivot.valCol, agg: pivot.agg, chartType: 'bar', _fromPivot: true, _pivotHeaders: pivot.headers, _pivotRef: pi })"
-              class="text-xs bg-purple-600 text-white px-2.5 py-1 rounded hover:bg-purple-700 transition-colors">
-              Add chart from pivot
-            </button>
-          </div>
-          <div class="overflow-x-auto max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
-            <table class="w-full text-xs border-collapse">
-              <thead class="sticky top-0 z-10">
-                <tr>
-                  <th class="px-2 py-1.5 text-left font-semibold text-gray-500 uppercase border-b bg-gray-100 whitespace-nowrap">{{ pivot.rowCol || 'Row' }}</th>
-                  <th v-for="h in pivot.headers" :key="h" class="px-2 py-1.5 text-right font-semibold text-gray-500 uppercase border-b bg-gray-100 whitespace-nowrap">{{ h }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, ri) in pivot.result" :key="ri" class="border-b border-gray-50 even:bg-gray-50/50 hover:bg-blue-50/30">
-                  <td class="px-2 py-1 font-medium text-gray-700 whitespace-nowrap">{{ row._row }}</td>
-                  <td v-for="h in pivot.headers" :key="h" class="px-2 py-1 text-right text-gray-600 whitespace-nowrap">{{ row[h] != null ? (typeof row[h] === 'number' ? row[h].toLocaleString() : String(row[h]).slice(0, 50)) : '\u2014' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Create new pivot -->
-        <div class="mb-6 shrink-0">
-          <details class="bg-white border border-gray-200 rounded-xl">
-            <summary class="px-4 py-2.5 text-sm font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-50 rounded-xl select-none">Create pivot table</summary>
-            <div class="border-t border-gray-100">
-              <PivotTable
-                v-if="tables[0]"
-                :selected-table="tables[0].name"
-                :table-columns="tables[0]?.columns || []"
-                :numeric-cols="allNumericCols"
-                :run-sql="runSqlQuery"
-                @add-pivot-chart="onAiChartSuggestion"
-                @pivot-generated="addPivot"
-              />
-            </div>
-          </details>
-        </div>
-
-        <div class="flex-1 min-h-0">
-          <DashboardCanvas
-            ref="canvasRef"
-            :charts="charts"
-            :texts="texts"
-            :columns="allColumns"
-            :numeric-columns="allNumericCols"
-            :view-only="viewOnly"
-            :schema-text="exploreSchemaText"
-            :run-sql="runSqlQuery"
-            @update="onChartUpdate"
-            @add-chart="addChart"
-            @remove-chart="removeChart"
-            @update-text="onTextUpdate"
-            @add-text="addTextItem"
-            @delete-text="removeTextItem"
-            @toggle-view="viewOnly = !viewOnly"
-            @auto-layout="autoLayoutCharts"
-            @apply-chart="onAiChartSuggestion"
-            @run-sql="onAiRunSql"
-          />
-        </div>
+      </div>
       </div>
 
       <!-- Step 4: Export -->
@@ -322,7 +335,7 @@
         <div class="mb-6">
           <div>
             <h2 class="text-xl font-semibold text-gray-800">Save and export</h2>
-            <p class="text-sm text-gray-500 mt-1">Save your report in your browser or export it.</p>
+            <p class="text-sm text-gray-500 mt-1">Save your report, or export to Excel, PDF or JSON.</p>
           </div>
         </div>
         <div class="mb-4">
@@ -337,7 +350,7 @@
           :raw-columns="allColumns"
           :raw-rows="allRows"
           :tables="tables"
-          :chart-data-query="fetchAllData"
+          :chart-data-query="() => fetchAllData(joins.value, tables.value)"
           :chart-images="capturedImages"
           :dashboard-image="capturedDashboardImage"
           :fetch-full-table="fetchFullTableData"
@@ -347,6 +360,7 @@
       </div>
     </main>
 
+    <TutorialModal v-if="showTutorial" @close="showTutorial = false" />
     <ToastContainer />
     <div v-if="tables.length && currentStep < 4" class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 px-6 py-3">
       <div class="max-w-[1600px] mx-auto flex justify-end">
@@ -360,178 +374,62 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import * as duckdb from '@duckdb/duckdb-wasm'
+import { ref, computed } from 'vue'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, RadialLinearScale, Title, Tooltip, Legend } from 'chart.js'
-import mvpWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
-import ehWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url'
-import coiWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url'
-import mvpWorkerUrl from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url'
-import ehWorkerUrl from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url'
-import coiWorkerUrl from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url'
-import coiPthreadWorkerUrl from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url'
-import CsvUploader from './components/CsvUploader.vue'
-import DashboardCanvas from './components/DashboardCanvas.vue'
+import html2canvas from 'html2canvas'
+
+import { useDuckDb } from './composables/useDuckDb'
+import { useDataSources } from './composables/useDataSources'
+import { useReport } from './composables/useReport'
+import DataUploader from './components/DataUploader.vue'
+import GridCanvas from './components/GridCanvas.vue'
 import ExportTools from './components/ExportTools.vue'
 import DataExplorer from './components/DataExplorer.vue'
 import PivotTable from './components/PivotTable.vue'
 import ToastContainer from './components/ToastContainer.vue'
-import ChatPanel from './components/ChatPanel.vue'
+import TutorialModal from './components/TutorialModal.vue'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, RadialLinearScale, Title, Tooltip, Legend)
 
-const steps = ['Upload', 'Explore', 'Build', 'Export']
-const currentStep = ref(1)
+const duckDb = useDuckDb()
+const { registerCSV, registerExcel, registerJSON, runSqlQuery, fetchFullTableData, buildFromClause, fetchAllData, createTableFromQuery } = duckDb
 
-let db = null
-let conn = null
-const tables = ref([])
-const charts = ref([])
-const texts = ref([])
-const joins = ref([])
-const showJoinConfig = ref(false)
-const viewOnly = ref(false)
-const timers = {}
-const capturedImages = ref([])
-const capturedDashboardImage = ref(null)
-const canvasRef = ref(null)
-const showAbout = ref(false)
-const duckIconSrc = (import.meta.env.BASE_URL || '/') + 'duck-icon.svg'
-const aiSuggestions = ref([])
-const aiStatus = ref('idle')
-const aiProgress = ref(0)
-const loadingSamples = ref(false)
+const dataSources = useDataSources({ registerCSV, registerExcel, registerJSON })
+const { tables, loadingSamples, allColumns, allNumericCols, allRows, handleFileUpload, loadSampleData, removeTable: dsRemoveTable, getColumns, registerTableFromQuery, uid } = dataSources
+
+const report = useReport({ runSqlQuery, buildFromClause, fetchFullTableData, tables, allColumns, allNumericCols, getColumns, uid })
+const {
+  charts, joins, sharedPivots, showJoinConfig, viewOnly,
+  dashboardName, capturedImages, capturedDashboardImage,
+  chartSuggestions, reportConfig,
+  applySuggestion,
+  runSqlAndNavigate: reportRunSqlAndNavigate,
+  addJoin, updateJoin, removeJoin,
+  addPivot, removePivot,
+  onLoadReport: reportOnLoadReport,
+} = report
+
 const sampleFiles = 3
-const dashboardName = ref('My Report')
-const sharedPivots = ref([])
-let idCounter = 0
-const usedTableNames = new Set()
-
-const bgColors = ['#3B82F6', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']
-
-function uid() { return (Date.now() + ++idCounter).toString(36) }
-
-const allColumns = computed(() => tables.value.flatMap(t => t.columns))
-const allNumericCols = computed(() => allColumns.value.filter(c =>
-  ['INTEGER', 'DOUBLE', 'BIGINT', 'FLOAT', 'DECIMAL', 'HUGEINT', 'SMALLINT', 'TINYINT'].some(t => c.type.toUpperCase().includes(t))
-))
-
-const allRows = computed(() => {
-  if (!tables.value.length) return []
-  return tables.value[0]?.rows || []
-})
+const currentStep = ref(1)
+const steps = ['Upload', 'Explore', 'Build', 'Export']
+const stepDescriptions = ['Import your data', 'Query & explore', 'Build dashboards', 'Export reports']
+const showAbout = ref(false)
+const showTutorial = ref(false)
+const canvasRef = ref(null)
+const duckIconSrc = (import.meta.env.BASE_URL || '/') + 'duck-icon.svg'
+const showJoinModal = ref(false)
+const showPivotModal = ref(false)
 
 const joinSvgW = computed(() => Math.max(400, joins.value.length * 28 + 60))
 
-const exploreSchemaText = computed(() => {
-  if (!tables.value.length) return ''
-  let s = tables.value.map(t => {
-    const cols = t.columns.map(c => c.name + ' (' + c.type + ')').join(', ')
-    return 'Table: ' + t.name + '\nColumns: ' + cols
-  }).join('\n\n')
-  if (joins.value.length) {
-    s += '\n\nJoins:\n' + joins.value.map(j =>
-      j.table1 + '.' + j.col1 + ' = ' + j.table2 + '.' + j.col2 + ' (' + j.type + ')'
-    ).join('\n')
-  }
-  return s
-})
-
-async function onAiChartSuggestion(s) {
-  const offset = 20 + charts.value.length * 30
-  const chart = {
-    id: uid(), _type: 'chart',
-    title: s.label,
-    table: tables.value[0]?.name || '',
-    xCol: s.xCol, yCol: s.yCol, agg: s.agg, chartType: s.chartType,
-    sortDir: 'DESC', limit: 50, filter: '',
-    x: offset % 600, y: offset, width: 420, height: 300,
-    queryResult: [], resultColumns: [], chartData: null,
-    _loading: false, _error: '',
-    _fromPivot: s._fromPivot || false,
-    _pivotHeaders: s._pivotHeaders || null,
-    _pivotRef: s._pivotRef ?? -1,
-  }
-  charts.value = [...charts.value, chart]
-  setTimeout(() => runChartQuery(chart), 100)
-  const { useToast: ut } = await import('./lib/toast')
-  const { showToast } = ut()
-  showToast('Chart "' + s.label + '" added!')
+async function addQueryResult(tableName, sql) {
+  const meta = await createTableFromQuery(tableName, sql)
+  registerTableFromQuery(tableName, meta)
 }
 
-async function onAiRunSql(sql) {
-  currentStep.value = 2
-  // Execute the SQL and show results
-  const results = await runSqlQuery(sql)
-  const { useToast: ut } = await import('./lib/toast')
-  const { showToast } = ut()
-  if (results.length) {
-    showToast('Query returned ' + results.length + ' rows — see Explore tab')
-  } else {
-    showToast('Query returned no results', 'warning')
-  }
-}
-
-const chartSuggestions = computed(() => {
-  const cats = allColumns.value.filter(c => !allNumericCols.value.includes(c))
-  const nums = allNumericCols.value
-  if (!cats.length || !nums.length) return []
-  const firstTable = tables.value[0]?.name || ''
-  const dateCols = cats.filter(c => c.type.toUpperCase().includes('DATE') || c.name.toLowerCase().includes('date'))
-  const suggestions = []
-  // Bar: cat + num
-  if (cats[0] && nums[0]) suggestions.push({ label: cats[0].name + ' by ' + nums[0].name, xCol: cats[0].name, yCol: nums[0].name, agg: 'SUM', chartType: 'bar', table: firstTable })
-  // Line: date + num (only if date column exists)
-  if (dateCols.length && nums[0]) suggestions.push({ label: nums[0].name + ' over time', xCol: dateCols[0].name, yCol: nums[0].name, agg: 'SUM', chartType: 'line', table: firstTable })
-  // Pie: cat with few values
-  if (cats.length > 1) suggestions.push({ label: 'Distribution of ' + cats[1].name, xCol: cats[1].name, yCol: nums[0].name, agg: 'SUM', chartType: 'pie', table: firstTable })
-  // Second bar if we have another cat
-  if (cats.length > 2 && nums.length > 1) suggestions.push({ label: cats[2].name + ' by ' + nums[1].name, xCol: cats[2].name, yCol: nums[1].name, agg: 'AVG', chartType: 'bar', table: firstTable })
-  // Line with AVG if we have date
-  if (dateCols.length && nums.length > 1) suggestions.push({ label: 'Avg ' + nums[1].name + ' over time', xCol: dateCols[0].name, yCol: nums[1].name, agg: 'AVG', chartType: 'line', table: firstTable })
-  return suggestions.slice(0, 6)
-})
-
-function getColumns(tableName) {
-  const t = tables.value.find(x => x.name === tableName)
-  return t?.columns || []
-}
-
-const reportConfig = computed(() => ({
-  name: dashboardName.value,
-  tables: tables.value.map(t => ({ name: t.name, fileName: t.fileName })),
-  joins: joins.value,
-  charts: charts.value.map(c => ({
-    id: c.id, title: c.title, xCol: c.xCol, yCol: c.yCol,
-    agg: c.agg, chartType: c.chartType, sortDir: c.sortDir,
-    limit: c.limit, filter: c.filter, table: c.table,
-    x: c.x, y: c.y, width: c.width, height: c.height,
-    queryResult: c.queryResult, resultColumns: c.resultColumns,
-    _fromPivot: c._fromPivot, _pivotHeaders: c._pivotHeaders, _pivotRef: c._pivotRef,
-  })),
-  texts: texts.value.map(t => ({ id: t.id, text: t.text, x: t.x, y: t.y, fontSize: t.fontSize, bold: t.bold, color: t.color })),
-  pivots: sharedPivots.value.map(p => ({ rowCol: p.rowCol, colCol: p.colCol, valCol: p.valCol, agg: p.agg, result: p.result, headers: p.headers })),
-}))
-
-function cleanValue(v) {
-  if (v == null) return null
-  if (typeof v === 'bigint') return Number(v)
-  if (typeof v === 'number') return v
-  if (typeof v === 'string') {
-    const t = v.trim()
-    if (t.startsWith('"') && t.endsWith('"')) return cleanValue(t.slice(1, -1))
-    if (t !== '' && !isNaN(Number(t))) return Number(t)
-    if (t === '' || t === '-' || t === '—') return null
-    return t
-  }
-  return v
-}
-
-function toPlain(rows) {
-  return rows.map(r => {
-    const obj = {}
-    for (const key of Object.keys(r)) { obj[key] = cleanValue(r[key]) }
-    return obj
+function removeTable(name) {
+  dsRemoveTable(name, (removedName) => {
+    joins.value = joins.value.filter(j => j.table1 !== removedName && j.table2 !== removedName)
   })
 }
 
@@ -561,6 +459,98 @@ async function captureAllContent() {
   capturedDashboardImage.value = await captureDashboardScreenshot()
 }
 
+async function captureDashboardScreenshot() {
+  const gridEl = document.querySelector('.vue-grid-layout')
+  if (!gridEl) return null
+
+  // Switch grid items from CSS transforms (translate3d) to top/left
+  // positioning — html2canvas doesn't reliably capture items positioned
+  // with transforms in vue-grid-layout-v3
+  const items = [...gridEl.querySelectorAll(':scope > .vue-grid-item')]
+  if (!items.length) return null
+  const itemStates = items.map(item => {
+    const s = { el: item, transform: item.style.transform, left: item.style.left, top: item.style.top, transition: item.style.transition }
+    const m = item.style.transform?.match(/translate3d\(\s*([\d.-]+)px\s*,\s*([\d.-]+)px/)
+    if (m) {
+      item.style.left = m[1] + 'px'
+      item.style.top = m[2] + 'px'
+      item.style.transform = 'none'
+    }
+    item.style.transition = 'none'
+    return s
+  })
+
+  const origHeight = gridEl.style.height
+  const origTransition = gridEl.style.transition
+  gridEl.style.transition = 'none'
+  let maxBottom = 0
+  for (const item of items) {
+    const b = item.offsetTop + item.offsetHeight
+    if (b > maxBottom) maxBottom = b
+  }
+  if (maxBottom > 0) gridEl.style.height = maxBottom + 'px'
+
+  try {
+    const canvas = await html2canvas(gridEl, { useCORS: true, scale: 3, backgroundColor: '#ffffff' })
+    return cropToContent(canvas).toDataURL('image/png')
+  } catch {
+    return null
+  } finally {
+    gridEl.style.transition = origTransition
+    gridEl.style.height = origHeight
+    for (const s of itemStates) {
+      s.el.style.transform = s.transform
+      s.el.style.left = s.left
+      s.el.style.top = s.top
+      s.el.style.transition = s.transition
+    }
+  }
+}
+
+function cropToContent(canvas) {
+  const ctx = canvas.getContext('2d')
+  const { width, height } = canvas
+  const data = ctx.getImageData(0, 0, width, height).data
+
+  function isWhite(x, y) {
+    const i = (y * width + x) * 4
+    return data[i] >= 248 && data[i + 1] >= 248 && data[i + 2] >= 248
+  }
+
+  let top = 0, bottom = height - 1, left = 0, right = width - 1
+  for (let y = 0; y < height; y++) {
+    let allWhite = true
+    for (let x = 0; x < width; x++) { if (!isWhite(x, y)) { allWhite = false; break } }
+    if (!allWhite) { top = y; break }
+  }
+  for (let y = height - 1; y >= 0; y--) {
+    let allWhite = true
+    for (let x = 0; x < width; x++) { if (!isWhite(x, y)) { allWhite = false; break } }
+    if (!allWhite) { bottom = y; break }
+  }
+  for (let x = 0; x < width; x++) {
+    let allWhite = true
+    for (let y = top; y <= bottom; y++) { if (!isWhite(x, y)) { allWhite = false; break } }
+    if (!allWhite) { left = x; break }
+  }
+  for (let x = width - 1; x >= 0; x--) {
+    let allWhite = true
+    for (let y = top; y <= bottom; y++) { if (!isWhite(x, y)) { allWhite = false; break } }
+    if (!allWhite) { right = x; break }
+  }
+
+  const pad = 40
+  const cropW = Math.min(right - left + 1 + pad * 2, width)
+  const cropH = Math.min(bottom - top + 1 + pad * 2, height)
+  const cropLeft = Math.max(0, left - pad)
+  const cropTop = Math.max(0, top - pad)
+  const out = document.createElement('canvas')
+  out.width = cropW
+  out.height = cropH
+  out.getContext('2d').drawImage(canvas, cropLeft, cropTop, cropW, cropH, 0, 0, cropW, cropH)
+  return out
+}
+
 async function goToStep(step) {
   if (!canNavigateTo(step)) return
   if (step === 4) await captureAllContent()
@@ -574,373 +564,16 @@ async function goToExport() {
   currentStep.value = 4
 }
 
-// DuckDB
-
-async function initDuckDB() {
-  const bundles = {
-    mvp: { mainModule: mvpWasmUrl, mainWorker: mvpWorkerUrl },
-    eh: { mainModule: ehWasmUrl, mainWorker: ehWorkerUrl },
-    coi: { mainModule: coiWasmUrl, mainWorker: coiWorkerUrl, pthreadWorker: coiPthreadWorkerUrl },
-  }
-  const bundle = await duckdb.selectBundle(bundles)
-  const worker = new Worker(bundle.mainWorker)
-  const logger = new duckdb.ConsoleLogger()
-  const instance = new duckdb.AsyncDuckDB(logger, worker)
-  await instance.instantiate(bundle.mainModule, bundle.pthreadWorker)
-  return instance
+function runSqlAndNavigate(sql) {
+  reportRunSqlAndNavigate(sql, (step) => { currentStep.value = step })
 }
-
-async function loadSampleData() {
-  loadingSamples.value = true
-  const base = import.meta.env.BASE_URL || '/'
-  const files = ['sales.csv', 'products.csv', 'employees.csv']
-  for (const f of files) {
-    try {
-      const resp = await fetch(base + 'test_data/' + f)
-      const blob = await resp.blob()
-      const file = new File([blob], f, { type: 'text/csv' })
-      await handleFileUpload(file)
-    } catch (err) {
-      console.error('Could not load sample file:', f, err)
-    }
-  }
-  loadingSamples.value = false
-}
-
-async function handleFileUpload(file) {
-  try {
-    if (!db) db = await initDuckDB()
-    if (!conn) conn = await db.connect()
-
-    const baseName = file.name.replace(/\.csv$/i, '').replace(/[^a-zA-Z0-9_]/g, '_')
-    let tableName = baseName
-    let suffix = 1
-    while (usedTableNames.has(tableName)) { tableName = baseName + '_' + suffix; suffix++ }
-    usedTableNames.add(tableName)
-
-    const buf = new Uint8Array(await file.arrayBuffer())
-    await db.registerFileBuffer(file.name, buf)
-    await conn.insertCSVFromPath(file.name, { name: tableName, detect: true })
-
-    const info = await conn.query('DESCRIBE ' + tableName)
-    const cols = info.toArray().map(r => ({ name: r.column_name, type: r.column_type }))
-
-    const preview = await conn.query('SELECT * FROM ' + tableName + ' LIMIT 50')
-    const rows = toPlain(preview.toArray())
-
-    // Count rows
-    const countRes = await conn.query('SELECT COUNT(*) AS cnt FROM ' + tableName)
-    const rowCount = Number(countRes.toArray()[0].cnt)
-
-    tables.value = [...tables.value, { name: tableName, fileName: file.name, columns: cols, rows, rowCount }]
-  } catch (err) {
-    console.error(err)
-    const { useToast: ut } = await import('./lib/toast')
-    ut().showToast('Could not read the file ' + file.name, 'error')
-  }
-}
-
-function removeTable(name) {
-  tables.value = tables.value.filter(t => t.name !== name)
-  joins.value = joins.value.filter(j => j.table1 !== name && j.table2 !== name)
-}
-
-// Joins
-
-function addJoin() {
-  if (tables.value.length < 2) return
-  joins.value = [...joins.value, { table1: tables.value[0].name, col1: '', type: 'INNER', table2: tables.value[1].name, col2: '' }]
-}
-
-function updateJoin(index, key, value) {
-  joins.value = joins.value.map((j, i) => i === index ? { ...j, [key]: value } : j)
-}
-
-function removeJoin(index) {
-  joins.value = joins.value.filter((_, i) => i !== index)
-}
-
-function buildFromClause(chartTable) {
-  if (!joins.value.length) return '"' + (chartTable || (tables.value[0]?.name || 'raw_data')) + '"'
-  let from = ''
-  for (const j of joins.value) {
-    if (!from) from = '"' + j.table1 + '"'
-    from += ' ' + j.type + ' JOIN "' + j.table2 + '" ON "' + j.table1 + '"."' + j.col1 + '" = "' + j.table2 + '"."' + j.col2 + '"'
-  }
-  // If chart has a specific table not in join, append it
-  if (chartTable && !from.includes(chartTable)) {
-    from = '"' + chartTable + '", ' + from
-  }
-  return from
-}
-
-async function fetchAllData() {
-  if (!conn || !tables.value.length) return []
-  try {
-    const from = buildFromClause(tables.value[0].name)
-    const res = await conn.query('SELECT * FROM ' + from + ' LIMIT 5000')
-    return toPlain(res.toArray())
-  } catch { return [] }
-}
-
-async function fetchFullTableData(tableName) {
-  if (!conn) return []
-  try {
-    const res = await conn.query('SELECT * FROM "' + tableName + '"')
-    return toPlain(res.toArray())
-  } catch { return [] }
-}
-
-import html2canvas from 'html2canvas'
-
-async function captureDashboardScreenshot() {
-  const scrollEl = document.querySelector('.canvas-scroll')
-  if (!scrollEl) return null
-  const inner = scrollEl.querySelector('div.relative')
-  if (!inner) return null
-  try {
-    const origOverflow = scrollEl.style.overflow
-    scrollEl.style.overflow = 'visible'
-    const canvas = await html2canvas(inner, { useCORS: true, scale: 2, backgroundColor: '#ffffff' })
-    scrollEl.style.overflow = origOverflow
-    const cropped = cropToContent(canvas)
-    return cropped.toDataURL('image/png')
-  } catch {
-    return null
-  }
-}
-
-function cropToContent(canvas) {
-  const ctx = canvas.getContext('2d')
-  const { width, height } = canvas
-  const data = ctx.getImageData(0, 0, width, height).data
-  const threshold = 240
-
-  function isWhite(x, y) {
-    const i = (y * width + x) * 4
-    return data[i] >= threshold && data[i + 1] >= threshold && data[i + 2] >= threshold
-  }
-
-  let top = 0, bottom = height - 1, left = 0, right = width - 1
-
-  for (let y = 0; y < height; y++) {
-    let allWhite = true
-    for (let x = 0; x < width; x++) { if (!isWhite(x, y)) { allWhite = false; break } }
-    if (!allWhite) { top = y; break }
-  }
-
-  for (let y = height - 1; y >= 0; y--) {
-    let allWhite = true
-    for (let x = 0; x < width; x++) { if (!isWhite(x, y)) { allWhite = false; break } }
-    if (!allWhite) { bottom = y; break }
-  }
-
-  for (let x = 0; x < width; x++) {
-    let allWhite = true
-    for (let y = top; y <= bottom; y++) { if (!isWhite(x, y)) { allWhite = false; break } }
-    if (!allWhite) { left = x; break }
-  }
-
-  for (let x = width - 1; x >= 0; x--) {
-    let allWhite = true
-    for (let y = top; y <= bottom; y++) { if (!isWhite(x, y)) { allWhite = false; break } }
-    if (!allWhite) { right = x; break }
-  }
-
-  const cropW = right - left + 1
-  const cropH = bottom - top + 1
-  const out = document.createElement('canvas')
-  out.width = cropW
-  out.height = cropH
-  out.getContext('2d').drawImage(canvas, left, top, cropW, cropH, 0, 0, cropW, cropH)
-  return out
-}
-
-// Text annotations
-
-function addTextItem() {
-  const id = uid()
-  texts.value = [...texts.value, { id, text: 'New label', x: 40 + texts.value.length * 20, y: 40 + texts.value.length * 20, fontSize: 14, bold: false, color: '#333', _type: 'text' }]
-}
-
-function onTextUpdate({ id, key, value }) {
-  texts.value = texts.value.map(t => t.id === id ? { ...t, [key]: value } : t)
-}
-
-function removeTextItem(id) {
-  texts.value = texts.value.filter(t => t.id !== id)
-}
-
-// Charts
-
-function addChart() {
-  const offset = 20 + charts.value.length * 30
-  const chart = {
-    id: uid(), _type: 'chart',
-    title: 'Chart ' + (charts.value.length + 1),
-    table: tables.value[0]?.name || '',
-    xCol: '', yCol: '', agg: 'SUM', chartType: 'bar',
-    sortDir: 'DESC', limit: 50, filter: '',
-    x: offset % 600, y: offset, width: 420, height: 300,
-    queryResult: [], resultColumns: [], chartData: null,
-    _loading: false, _error: '',
-  }
-  charts.value = [...charts.value, chart]
-}
-
-function applySuggestion(s) {
-  const offset = 20 + charts.value.length * 30
-  const chart = {
-    id: uid(), _type: 'chart',
-    title: s.label,
-    table: s.table || tables.value[0]?.name || '',
-    xCol: s.xCol, yCol: s.yCol, agg: s.agg, chartType: s.chartType,
-    sortDir: 'DESC', limit: 50, filter: '',
-    x: offset % 600, y: offset, width: 420, height: 300,
-    queryResult: [], resultColumns: [], chartData: null,
-    _loading: false, _error: '',
-  }
-  charts.value = [...charts.value, chart]
-  setTimeout(() => runChartQuery(chart), 100)
-}
-
-function removeChart(id) {
-  charts.value = charts.value.filter(c => c.id !== id)
-}
-
-function autoLayoutCharts() {
-  const items = charts.value
-  if (!items.length) return
-  const gap = 24
-  const chartW = 420
-  const chartH = 300
-  const margin = 20
-  const cols = Math.min(Math.max(Math.floor(Math.sqrt(items.length * 1.5)), 1), 4)
-  charts.value = items.map((item, i) => ({
-    ...item,
-    x: margin + (i % cols) * (chartW + gap),
-    y: margin + Math.floor(i / cols) * (chartH + gap),
-  }))
-}
-
-function addPivot(data) {
-  sharedPivots.value = [...sharedPivots.value, { id: uid(), ...data }]
-}
-
-function removePivot(index) {
-  sharedPivots.value = sharedPivots.value.filter((_, i) => i !== index)
-}
-
-async function runAiSuggest() {
-  if (!tables.value.length) return
-  aiStatus.value = 'loading'
-  aiSuggestions.value = []
-  try {
-    const { useModel } = await import('./lib/model')
-    const m = useModel()
-    if (m.modelStatus.value !== 'ready') await m.ensureLoaded().catch(() => {})
-
-    let schemaText = tables.value.map(t => {
-      const cols = t.columns.map(c => c.name + ' (' + c.type + ')').join(', ')
-      return 'Table: ' + t.name + '\nColumns: ' + cols
-    }).join('\n\n')
-
-    if (joins.value.length) {
-      schemaText += '\n\nJoins:\n' + joins.value.map(j =>
-        j.table1 + '.' + j.col1 + ' = ' + j.table2 + '.' + j.col2 + ' (' + j.type + ')'
-      ).join('\n')
-    }
-
-    aiProgress.value = 100
-    const results = await m.suggestCharts(schemaText)
-
-    aiSuggestions.value = results.map(r => ({
-      ...r,
-      table: tables.value[0]?.name || '',
-    }))
-
-    aiStatus.value = aiSuggestions.value.length ? 'ready' : 'done'
-  } catch {
-    aiStatus.value = 'error'
-  }
-}
-
-function onChartUpdate({ id, key, value }) {
-  const chart = charts.value.find(c => c.id === id)
-  if (!chart) return
-  chart[key] = value
-  if (['xCol', 'yCol', 'agg', 'sortDir', 'limit', 'filter', 'table'].includes(key)) {
-    clearTimeout(timers[id])
-    timers[id] = setTimeout(() => runChartQuery(chart), 400)
-  }
-}
-
-async function runChartQuery(chart) {
-  if (!chart.xCol || !chart.yCol) return
-  chart._loading = true
-  chart._error = ''
-  try {
-    const from = buildFromClause(chart.table)
-    let sql = 'SELECT "' + chart.xCol + '", ' + chart.agg + '("' + chart.yCol + '") AS value FROM ' + from
-    if (chart.filter) sql += ' WHERE ' + chart.filter
-    sql += ' GROUP BY "' + chart.xCol + '" ORDER BY value ' + (chart.sortDir || 'DESC')
-    sql += ' LIMIT ' + (chart.limit || 50)
-
-    const res = await conn.query(sql)
-    const data = toPlain(res.toArray())
-    chart.queryResult = data
-    chart.resultColumns = res.schema.fields.map(f => f.name)
-    chart.chartData = {
-      labels: data.map(r => String(r[chart.resultColumns[0]])),
-      datasets: [{
-        label: chart.agg + ' of ' + chart.yCol,
-        data: data.map(r => r.value),
-        backgroundColor: bgColors, borderColor: '#3B82F6',
-      }],
-    }
-  } catch (err) {
-    console.error(err)
-    chart._error = 'Query failed. Check columns, filter, or joins.'
-    chart.chartData = null
-  } finally {
-    chart._loading = false
-  }
-}
-
-async function captureAndExport() {
-  if (!canvasRef.value) return
-  capturedImages.value = await canvasRef.value.captureAllImages()
-  currentStep.value = 4
-}
-
-async function runSqlQuery(sql) {
-  if (!conn) return []
-  try {
-    const res = await conn.query(sql)
-    return toPlain(res.toArray())
-  } catch { return [] }
-}
-
-// Pre-load AI model in background after data is uploaded
-watch(() => tables.value.length, (len) => {
-  if (len > 0) {
-    setTimeout(async () => {
-      try {
-        const { useModel } = await import('./lib/model')
-        await useModel().ensureLoaded()
-      } catch {}
-    }, 2000)
-  }
-})
 
 function onLoadReport(config) {
-  dashboardName.value = config.name || 'Imported Report'
-  charts.value = (config.charts || []).map(c => ({ ...c, _type: 'chart', chartData: null, _loading: false, _error: '' }))
-  texts.value = (config.texts || []).map(t => ({ ...t, _type: 'text' }))
-  if (config.joins) joins.value = config.joins
-  capturedImages.value = []
-  viewOnly.value = true
+  const runQueries = reportOnLoadReport(config)
   currentStep.value = 3
-  setTimeout(() => charts.value.forEach(runChartQuery), 100)
+  if (typeof runQueries === 'function') {
+    setTimeout(runQueries, 100)
+  }
 }
+
 </script>

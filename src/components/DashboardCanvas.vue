@@ -5,7 +5,7 @@
         <div class="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
           <div class="flex items-center gap-3">
             <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Canvas</span>
-            <span class="text-xs text-gray-400">{{ charts.length + texts.length }} items</span>
+            <span class="text-xs text-gray-400">{{ charts.length + texts.length + canvasTables.length }} items</span>
           </div>
           <div class="flex items-center gap-2">
             <template v-if="!viewOnly">
@@ -14,6 +14,7 @@
               <button @click="zoomIn" class="text-xs text-gray-400 hover:text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100">+</button>
               <div class="w-px h-4 bg-gray-200 mx-1"></div>
               <button @click="$emit('add-chart')" class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700">+ Chart</button>
+              <button @click="$emit('add-table')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-emerald-700">+ Table</button>
               <button @click="addText" class="bg-gray-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-gray-700">+ Text</button>
               <div class="w-px h-4 bg-gray-200 mx-1"></div>
               <button @click="$emit('auto-layout')" class="text-xs border border-gray-300 rounded px-2 py-1 hover:bg-gray-100 text-gray-600">Auto</button>
@@ -26,7 +27,9 @@
         </div>
         <div class="overflow-auto relative select-none canvas-scroll flex-1 min-h-0"
           :class="viewOnly ? 'h-[90vh]' : ''"
-          @mousemove="onMouseMove" @mouseup="onMouseUp" @mouseleave="onMouseUp" @click.self="selectedId = null">
+          tabindex="0"
+          @mousemove="onMouseMove" @mouseup="onMouseUp" @mouseleave="onMouseUp" @click.self="selectedId = null"
+          @keydown="handleKeydown">
           <div class="relative" :style="canvasStyle">
             <svg class="absolute inset-0 pointer-events-none" width="100%" height="100%">
               <defs>
@@ -47,6 +50,10 @@
               @mousedown.stop="viewOnly ? null : startDragItem($event, t, 'text')"
               @dblclick.stop="viewOnly ? null : (editingTextId = t.id)"
               @click.stop="viewOnly ? null : (selectedId = t.id)">
+              <template v-if="!viewOnly && selectedId === t.id">
+                <button @mousedown.stop @click.stop="$emit('send-backward', 'text', t.id)" class="absolute -top-5 left-0 text-xs text-gray-400 hover:text-gray-600 bg-white border border-gray-200 rounded px-1 leading-tight" title="Send backward">↓</button>
+                <button @mousedown.stop @click.stop="$emit('bring-forward', 'text', t.id)" class="absolute -top-5 left-5 text-xs text-gray-400 hover:text-gray-600 bg-white border border-gray-200 rounded px-1 leading-tight" title="Bring forward">↑</button>
+              </template>
               <span v-if="editingTextId !== t.id">{{ t.text || 'Double-click to edit' }}</span>
               <input v-else :value="t.text" @input="updateText(t.id, $event.target.value)"
                 @blur="editingTextId = null" @keydown.enter="editingTextId = null"
@@ -62,9 +69,11 @@
               <div v-if="!viewOnly" class="flex items-center px-3 py-1.5 cursor-move select-none text-xs border-b" :class="selectedId === chart.id ? 'bg-blue-50 border-blue-200' : 'bg-gray-50/50 border-gray-100'">
                 <span class="font-medium text-gray-600 truncate flex-1">{{ chart.title || 'Chart' }}</span>
                 <span class="text-gray-400 capitalize ml-2">{{ chart.chartType }}</span>
+                <button v-if="selectedId === chart.id" @mousedown.stop @click.stop="$emit('send-backward', 'chart', chart.id)" class="text-gray-400 hover:text-gray-600 text-xs leading-none ml-1" title="Send backward">↓</button>
+                <button v-if="selectedId === chart.id" @mousedown.stop @click.stop="$emit('bring-forward', 'chart', chart.id)" class="text-gray-400 hover:text-gray-600 text-xs leading-none ml-1" title="Bring forward">↑</button>
                 <button @mousedown.stop @click.stop="$emit('remove-chart', chart.id)" class="text-gray-300 hover:text-red-400 text-base leading-none ml-2">&times;</button>
               </div>
-              <div class="p-2" :style="{ height: (chart.height - 34) + 'px' }">
+              <div class="p-2 overflow-y-auto" :style="{ height: (chart.height - 34) + 'px' }">
                 <div v-if="chart._loading" class="flex items-center justify-center h-full text-gray-400 text-xs">
                   <svg class="animate-spin h-4 w-4 mr-1.5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
@@ -89,6 +98,43 @@
                 <div class="absolute w-3 h-3 bg-white border-2 border-blue-500 rounded-sm cursor-se-resize" style="bottom:-6px;right:-6px" @mousedown.stop="startResize($event, chart)"></div>
               </template>
             </div>
+            <div v-for="tbl in canvasTables" :key="tbl.id"
+              class="absolute bg-white border-2 rounded-lg shadow-sm overflow-hidden"
+              :class="viewOnly ? 'border-transparent shadow-none' : (selectedId === tbl.id ? 'border-emerald-500 shadow-md z-10' : 'border-gray-200 hover:border-gray-300 z-0')"
+              :style="{ left:(tbl.x||20)+'px', top:(tbl.y||20)+'px', width:(tbl.width||500)+'px', height:(tbl.height||300)+'px' }"
+              @mousedown.stop="viewOnly ? null : startDragItem($event, tbl, 'table')"
+              @click.stop="viewOnly ? null : (selectedId = tbl.id)">
+              <div v-if="!viewOnly" class="flex items-center px-3 py-1.5 cursor-move select-none text-xs border-b" :class="selectedId === tbl.id ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50/50 border-gray-100'">
+                <span class="font-medium text-gray-600 truncate flex-1">{{ tbl.title || 'Table' }}</span>
+                <span class="text-gray-400 ml-2">{{ tbl.columns.length }} cols</span>
+                <button v-if="selectedId === tbl.id" @mousedown.stop @click.stop="$emit('send-backward', 'table', tbl.id)" class="text-gray-400 hover:text-gray-600 text-xs leading-none ml-1" title="Send backward">↓</button>
+                <button v-if="selectedId === tbl.id" @mousedown.stop @click.stop="$emit('bring-forward', 'table', tbl.id)" class="text-gray-400 hover:text-gray-600 text-xs leading-none ml-1" title="Bring forward">↑</button>
+                <button @mousedown.stop @click.stop="$emit('remove-table', tbl.id)" class="text-gray-300 hover:text-red-400 text-base leading-none ml-2">&times;</button>
+              </div>
+              <div class="overflow-auto" :style="{ height: (tbl.height - 34) + 'px' }">
+                <div v-if="tbl._loading" class="flex items-center justify-center h-full text-gray-400 text-xs">Loading...</div>
+                <div v-else-if="tbl._error" class="flex items-center justify-center h-full text-red-400 text-xs p-4">{{ tbl._error }}</div>
+                <div v-else-if="!tbl.queryResult || !tbl.queryResult.length" class="flex items-center justify-center h-full text-gray-300 text-xs border-2 border-dashed border-gray-100 rounded mx-4">No data</div>
+                <table v-else class="w-full text-xs border-collapse">
+                  <thead class="sticky top-0 z-10 bg-gray-50">
+                    <tr>
+                      <th v-for="col in tbl.columns" :key="col" class="px-2 py-1.5 text-left font-semibold text-gray-500 uppercase border-b whitespace-nowrap">{{ col }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, ri) in tbl.queryResult" :key="ri" class="border-b border-gray-50 even:bg-gray-50/50 hover:bg-blue-50/30">
+                      <td v-for="col in tbl.columns" :key="col" class="px-2 py-1 text-gray-600 whitespace-nowrap">{{ row[col] != null ? row[col] : '\u2014' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <template v-if="!viewOnly && selectedId === tbl.id">
+                <div class="absolute w-3 h-3 bg-white border-2 border-emerald-500 rounded-sm cursor-nw-resize" style="top:-6px;left:-6px" @mousedown.stop="startResize($event, tbl)"></div>
+                <div class="absolute w-3 h-3 bg-white border-2 border-emerald-500 rounded-sm cursor-ne-resize" style="top:-6px;right:-6px" @mousedown.stop="startResize($event, tbl)"></div>
+                <div class="absolute w-3 h-3 bg-white border-2 border-emerald-500 rounded-sm cursor-sw-resize" style="bottom:-6px;left:-6px" @mousedown.stop="startResize($event, tbl)"></div>
+                <div class="absolute w-3 h-3 bg-white border-2 border-emerald-500 rounded-sm cursor-se-resize" style="bottom:-6px;right:-6px" @mousedown.stop="startResize($event, tbl)"></div>
+              </template>
+            </div>
           </div>
         </div>
       </div>
@@ -100,11 +146,6 @@
           class="flex-1 px-3 py-2.5 text-xs font-medium transition-colors text-center"
           :class="sidebarTab === 'properties' ? 'text-blue-600 border-b-2 border-blue-600 bg-white' : 'text-gray-500 hover:text-gray-700'">
           Properties
-        </button>
-        <button @click="sidebarTab = 'chat'"
-          class="flex-1 px-3 py-2.5 text-xs font-medium transition-colors text-center"
-          :class="sidebarTab === 'chat' ? 'text-purple-600 border-b-2 border-purple-600 bg-white' : 'text-gray-500 hover:text-gray-700'">
-          Chat
         </button>
       </div>
 
@@ -118,6 +159,7 @@
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Y axis</label><select :value="selectedItem.yCol" @change="emitUpdate('yCol', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="" disabled>Select column</option><option v-for="c in numericColumns" :key="c.name" :value="c.name">{{ c.name }}</option></select></div>
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Calculation</label><select :value="selectedItem.agg" @change="emitUpdate('agg', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"><option v-for="a in ['SUM','AVG','COUNT','MIN','MAX']" :key="a" :value="a">{{ a }}</option></select></div>
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Chart type</label><select :value="selectedItem.chartType" @change="emitUpdate('chartType', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm bg-white capitalize focus:outline-none focus:ring-2 focus:ring-blue-500"><option v-for="t in chartTypes" :key="t" :value="t" class="capitalize">{{ t }}</option></select></div>
+          <div><label class="text-xs font-medium text-gray-500 mb-1 block">Mark as KPI</label><button @click="emitUpdate('_isKPI', !selectedItem._isKPI)" class="w-full border rounded-md p-1.5 text-sm font-medium transition-colors" :class="selectedItem._isKPI ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'"><span v-if="selectedItem._isKPI">★ KPI</span><span v-else>☆ Not a KPI</span></button></div>
           <div class="grid grid-cols-2 gap-3">
             <div><label class="text-xs font-medium text-gray-500 mb-1 block">Sort</label><select :value="selectedItem.sortDir" @change="emitUpdate('sortDir', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="DESC">Highest first</option><option value="ASC">Lowest first</option></select></div>
             <div><label class="text-xs font-medium text-gray-500 mb-1 block">Rows</label><input :value="selectedItem.limit" @input="emitUpdate('limit', Number($event.target.value)||50)" type="number" min="1" max="500" class="w-full border rounded-md p-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
@@ -125,6 +167,21 @@
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Filter</label><input :value="selectedItem.filter" @input="emitUpdate('filter', $event.target.value)" type="text" placeholder='e.g. &quot;Region&quot; = &apos;West&apos;' class="w-full border rounded-md p-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Position &amp; Size</label><div class="grid grid-cols-2 gap-2"><div><label class="text-xs text-gray-400 block">X</label><input :value="selectedItem.x" @change="emitUpdate('x', Math.max(0,Number($event.target.value)||0))" type="number" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">Y</label><input :value="selectedItem.y" @change="emitUpdate('y', Math.max(0,Number($event.target.value)||0))" type="number" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">W</label><input :value="selectedItem.width" @change="emitUpdate('width', Math.max(200,Number($event.target.value)||400))" type="number" min="200" step="10" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">H</label><input :value="selectedItem.height" @change="emitUpdate('height', Math.max(150,Number($event.target.value)||300))" type="number" min="150" step="10" class="w-full border rounded-md p-1.5 text-sm" /></div></div></div>
           <div class="pt-2 border-t"><button @click="downloadImage(selectedItem)" class="w-full text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded py-1.5 font-medium">Download PNG</button></div>
+        </div>
+        <div v-if="selectedItem?._type === 'table'" class="p-4 space-y-4">
+          <div><label class="text-xs font-medium text-gray-500 mb-1 block">Title</label><input :value="selectedItem.title" @input="emitTableUpdate('title', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>
+          <div><label class="text-xs font-medium text-gray-500 mb-1 block">Source table</label><select :value="selectedItem.tableName" @change="emitTableUpdate('tableName', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"><option v-for="t in tables" :key="t.name" :value="t.name">{{ t.name }}</option></select></div>
+          <div><label class="text-xs font-medium text-gray-500 mb-1 block">Columns</label><div class="flex flex-wrap gap-1 max-h-32 overflow-y-auto border border-gray-200 rounded-md p-1.5"><button v-for="c in getTableColumns(selectedItem.tableName)" :key="c.name" @click="toggleTableColumn(c.name)" class="text-xs rounded px-2 py-0.5 transition-colors" :class="selectedItem.columns.includes(c.name) ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">{{ c.name }}</button></div></div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="text-xs font-medium text-gray-500 mb-1 block">Sort by</label><select :value="selectedItem.sortCol" @change="emitTableUpdate('sortCol', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"><option value="">None</option><option v-for="c in selectedItem.columns" :key="c" :value="c">{{ c }}</option></select></div>
+            <div><label class="text-xs font-medium text-gray-500 mb-1 block">Direction</label><select :value="selectedItem.sortDir" @change="emitTableUpdate('sortDir', $event.target.value)" class="w-full border rounded-md p-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"><option value="DESC">Descending</option><option value="ASC">Ascending</option></select></div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="text-xs font-medium text-gray-500 mb-1 block">Max rows</label><input :value="selectedItem.limit" @input="emitTableUpdate('limit', Number($event.target.value)||100)" type="number" min="1" max="5000" class="w-full border rounded-md p-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>
+          </div>
+          <div><label class="text-xs font-medium text-gray-500 mb-1 block">Filter</label><input :value="selectedItem.filter" @input="emitTableUpdate('filter', $event.target.value)" type="text" placeholder='e.g. &quot;Region&quot; = &apos;West&apos;' class="w-full border rounded-md p-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>
+          <div><label class="text-xs font-medium text-gray-500 mb-1 block">Position &amp; Size</label><div class="grid grid-cols-2 gap-2"><div><label class="text-xs text-gray-400 block">X</label><input :value="selectedItem.x" @change="emitTableUpdate('x', Math.max(0,Number($event.target.value)||0))" type="number" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">Y</label><input :value="selectedItem.y" @change="emitTableUpdate('y', Math.max(0,Number($event.target.value)||0))" type="number" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">W</label><input :value="selectedItem.width" @change="emitTableUpdate('width', Math.max(200,Number($event.target.value)||500))" type="number" min="200" step="10" class="w-full border rounded-md p-1.5 text-sm" /></div><div><label class="text-xs text-gray-400 block">H</label><input :value="selectedItem.height" @change="emitTableUpdate('height', Math.max(150,Number($event.target.value)||300))" type="number" min="150" step="10" class="w-full border rounded-md p-1.5 text-sm" /></div></div></div>
+          <div class="pt-2 border-t"><button @click="emitTableUpdate('delete', true)" class="w-full text-xs text-red-500 bg-red-50 hover:bg-red-100 rounded py-1.5 font-medium">Delete table</button></div>
         </div>
         <div v-if="selectedItem?._type === 'text'" class="p-4 space-y-4">
           <div><label class="text-xs font-medium text-gray-500 mb-1 block">Content</label><textarea :value="selectedItem.text" @input="emitTextUpdate('text', $event.target.value)" rows="3" class="w-full border rounded-md p-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea></div>
@@ -138,15 +195,7 @@
         </div>
       </div>
 
-      <div v-if="sidebarTab === 'chat'" class="flex-1 overflow-y-auto">
-        <ChatPanel
-          :schema-text="schemaText"
-          :run-sql="runSql"
-          :embedded="true"
-          @apply-chart="(c) => $emit('apply-chart', c)"
-          @run-sql="(sql) => $emit('run-sql', sql)"
-        />
-      </div>
+
     </div>
   </div>
 </template>
@@ -154,11 +203,12 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { Bar, Line, Pie, Doughnut, PolarArea, Radar } from 'vue-chartjs'
-import ChatPanel from './ChatPanel.vue'
 
 const props = defineProps({
   charts: { type: Array, default: () => [] },
   texts: { type: Array, default: () => [] },
+  canvasTables: { type: Array, default: () => [] },
+  tables: { type: Array, default: () => [] },
   columns: { type: Array, default: () => [] },
   numericColumns: { type: Array, default: () => [] },
   viewOnly: { type: Boolean, default: false },
@@ -166,7 +216,7 @@ const props = defineProps({
   runSql: { type: Function, default: null },
 })
 
-const emit = defineEmits(['update', 'add-chart', 'remove-chart', 'update-text', 'add-text', 'delete-text', 'toggle-view', 'auto-layout', 'apply-chart', 'run-sql'])
+const emit = defineEmits(['update', 'add-chart', 'remove-chart', 'add-table', 'remove-table', 'update-table', 'update-text', 'add-text', 'delete-text', 'toggle-view', 'auto-layout', 'apply-chart', 'run-sql', 'bring-forward', 'send-backward'])
 
 const chartTypes = ['bar', 'line', 'pie', 'doughnut', 'polarArea', 'radar']
 const CANVAS_H = 1500
@@ -181,6 +231,8 @@ const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { 
 const selectedItem = computed(() => {
   const c = props.charts.find(x => x.id === selectedId.value)
   if (c) return c
+  const tbl = props.canvasTables.find(x => x.id === selectedId.value)
+  if (tbl) return tbl
   const t = props.texts.find(x => x.id === selectedId.value)
   if (t) return t
   return null
@@ -205,6 +257,28 @@ function emitUpdate(key, value) {
   if (item && item._type === 'chart') emit('update', { id: item.id, key, value })
 }
 
+function emitTableUpdate(key, value) {
+  const item = selectedItem.value
+  if (item && item._type === 'table') {
+    if (key === 'delete') { emit('remove-table', item.id); selectedId.value = null; return }
+    emit('update-table', { id: item.id, key, value })
+  }
+}
+
+function toggleTableColumn(colName) {
+  const item = selectedItem.value
+  if (!item || item._type !== 'table') return
+  const cols = item.columns.includes(colName)
+    ? item.columns.filter(c => c !== colName)
+    : [...item.columns, colName]
+  emit('update-table', { id: item.id, key: 'columns', value: cols })
+}
+
+function getTableColumns(tableName) {
+  const t = props.tables.find(x => x.name === tableName)
+  return t?.columns || []
+}
+
 function emitTextUpdate(key, value) {
   const item = selectedItem.value
   if (item && item._type === 'text') emit('update-text', { id: item.id, key, value })
@@ -225,17 +299,26 @@ function onMouseMove(e) {
   if (!dragState) return
   const dx = (e.clientX - dragState.startX) / zoom.value
   const dy = (e.clientY - dragState.startY) / zoom.value
-  const newX = Math.max(0, Math.round((dragState.origX + dx) / 10) * 10)
-  const newY = Math.max(0, Math.round((dragState.origY + dy) / 10) * 10)
-  const evt = dragState.type === 'chart' ? 'update' : 'update-text'
-  emit(evt, { id: dragState.item.id, key: 'x', value: newX })
-  emit(evt, { id: dragState.item.id, key: 'y', value: newY })
+  if (dragState.resizing) {
+    const newW = Math.max(200, Math.round((dragState.origW + dx) / 10) * 10)
+    const newH = Math.max(150, Math.round((dragState.origH + dy) / 10) * 10)
+    const evt = dragState.type === 'chart' ? 'update' : dragState.type === 'table' ? 'update-table' : 'update-text'
+    emit(evt, { id: dragState.item.id, key: 'width', value: newW })
+    emit(evt, { id: dragState.item.id, key: 'height', value: newH })
+  } else {
+    const newX = Math.max(0, Math.round((dragState.origX + dx) / 10) * 10)
+    const newY = Math.max(0, Math.round((dragState.origY + dy) / 10) * 10)
+    const evt = dragState.type === 'chart' ? 'update' : dragState.type === 'table' ? 'update-table' : 'update-text'
+    emit(evt, { id: dragState.item.id, key: 'x', value: newX })
+    emit(evt, { id: dragState.item.id, key: 'y', value: newY })
+  }
 }
 
 function onMouseUp() { if (dragState?.resizing) document.body.style.cursor = ''; dragState = null }
 
-function startResize(e, chart) {
-  dragState = { chart, startX: e.clientX, startY: e.clientY, origW: chart.width || 400, origH: chart.height || 300, resizing: true }
+function startResize(e, item) {
+  selectedId.value = item.id
+  dragState = { item, type: item._type, startX: e.clientX, startY: e.clientY, origW: item.width || 400, origH: item.height || 300, resizing: true }
   document.body.style.cursor = 'se-resize'; e.preventDefault()
 }
 
@@ -249,13 +332,58 @@ async function captureAllImages() {
   const images = []
   for (const chart of props.charts) {
     const ref = chartRefs[chart.id]; if (!ref?.chart) continue
-    try { images.push({ id: chart.id, dataUrl: ref.chart.toBase64Image('image/png', 0.8), title: chart.title, chartType: chart.chartType, agg: chart.agg, yCol: chart.yCol, xCol: chart.xCol, queryResult: chart.queryResult, _fromPivot: chart._fromPivot, _pivotRef: chart._pivotRef, _pivotHeaders: chart._pivotHeaders }) } catch {}
+    try { images.push({ id: chart.id, dataUrl: ref.chart.toBase64Image('image/png', 0.8), title: chart.title, chartType: chart.chartType, agg: chart.agg, yCol: chart.yCol, xCol: chart.xCol, table: chart.table, queryResult: chart.queryResult, _fromPivot: chart._fromPivot, _pivotRef: chart._pivotRef, _pivotHeaders: chart._pivotHeaders, _isKPI: chart._isKPI }) } catch {}
+  }
+  for (const tbl of props.canvasTables) {
+    if (tbl.queryResult && tbl.queryResult.length) {
+      images.push({ id: tbl.id, dataUrl: '', title: tbl.title, chartType: 'table', queryResult: tbl.queryResult, columns: tbl.columns, tableName: tbl.tableName })
+    }
   }
   return images
 }
 
 function zoomIn() { zoom.value = Math.min(2, zoom.value + 0.1) }
 function zoomOut() { zoom.value = Math.max(0.3, zoom.value - 0.1) }
+
+async function handleKeydown(e) {
+  if (!selectedId.value) return
+  const item = selectedItem.value
+  if (!item) return
+
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (item._type === 'chart') emit('remove-chart', item.id)
+    else if (item._type === 'table') emit('remove-table', item.id)
+    else if (item._type === 'text') emit('delete-text', item.id)
+    selectedId.value = null
+    e.preventDefault()
+  }
+
+  if (e.key === 'Escape') {
+    selectedId.value = null
+    e.preventDefault()
+  }
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    navigator.clipboard.writeText(JSON.stringify(item))
+    e.preventDefault()
+  }
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+    try {
+      const text = await navigator.clipboard.readText()
+      const parsed = JSON.parse(text)
+      if (parsed._type) {
+        parsed.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 5)
+        parsed.x = (parsed.x || 0) + 20
+        parsed.y = (parsed.y || 0) + 20
+        if (parsed._type === 'chart') emit('add-chart', parsed)
+        else if (parsed._type === 'table') emit('add-table', parsed)
+        else if (parsed._type === 'text') emit('add-text', parsed)
+      }
+    } catch {}
+    e.preventDefault()
+  }
+}
 
 defineExpose({ captureAllImages })
 </script>
