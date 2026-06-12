@@ -56,7 +56,7 @@
       </div>
     </div>
 
-     <main class="mx-auto p-6" :style="currentStep === 3 ? 'max-width:100%' : 'max-width:1600px'">
+     <main class="mx-auto p-6 mb-12" :style="currentStep === 3 ? 'max-width:100%' : 'max-width:1600px'">
       <!-- Step 1: Upload -->
       <div v-if="currentStep === 1">
         <!-- App overview -->
